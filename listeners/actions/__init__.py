@@ -1,9 +1,17 @@
-from slack_bolt import App
+"""Backward-compatible imports for actions listeners.
 
-from .assistant_feedback import assistant_feedback_handler
+Deprecated: Import from lsimons_bot.listeners.actions instead.
+"""
 
+import warnings
 
-def register(app: App) -> None:
-    """Register all action listeners with the Slack app."""
-    _ = app.action("feedback_thumbs_up")(assistant_feedback_handler)
-    _ = app.action("feedback_thumbs_down")(assistant_feedback_handler)
+from lsimons_bot.listeners.actions import register
+
+warnings.warn(
+    "Importing from 'listeners.actions' is deprecated. "
+    "Please use 'lsimons_bot.listeners.actions' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+__all__ = ["register"]

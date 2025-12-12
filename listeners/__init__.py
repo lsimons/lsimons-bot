@@ -1,12 +1,38 @@
-from slack_bolt import App
+"""Backward-compatible imports from lsimons_bot.listeners.
 
-from listeners import actions, commands, events, messages, shortcuts, views
+This module provides backward compatibility for existing code that imports
+from the old 'listeners' location. New code should import from
+'lsimons_bot.listeners' instead.
 
+Deprecation: The 'listeners' package at the root level will be removed in a
+future version. Please update your imports to use 'lsimons_bot.listeners'.
+"""
 
-def register_listeners(app: App) -> None:
-    actions.register(app)
-    commands.register(app)
-    events.register(app)
-    messages.register(app)
-    shortcuts.register(app)
-    views.register(app)
+import warnings
+
+from lsimons_bot.listeners import (
+    actions,
+    commands,
+    events,
+    messages,
+    register_listeners,
+    shortcuts,
+    views,
+)
+
+warnings.warn(
+    "Importing from 'listeners' is deprecated. "
+    "Please use 'lsimons_bot.listeners' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+__all__ = [
+    "register_listeners",
+    "actions",
+    "commands",
+    "events",
+    "messages",
+    "shortcuts",
+    "views",
+]

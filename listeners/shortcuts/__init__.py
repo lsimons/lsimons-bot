@@ -1,6 +1,17 @@
-from slack_bolt import App
+"""Backward-compatible imports for shortcuts listeners.
 
+Deprecation: Import from lsimons_bot.listeners.shortcuts instead.
+"""
 
-def register(app: App) -> None:
-    """Register shortcut listeners with the Slack app."""
-    pass  # Register your listeners here
+import warnings
+
+from lsimons_bot.listeners.shortcuts import register
+
+warnings.warn(
+    "Importing from 'listeners.shortcuts' is deprecated. "
+    "Please use 'lsimons_bot.listeners.shortcuts' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+__all__ = ["register"]

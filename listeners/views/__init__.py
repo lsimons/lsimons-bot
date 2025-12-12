@@ -1,6 +1,17 @@
-from slack_bolt import App
+"""Backward-compatible imports for views listener module.
 
+Deprecated: Use lsimons_bot.listeners.views instead.
+"""
 
-def register(app: App) -> None:
-    """Register view submission listeners with the Slack app."""
-    pass  # Register your listeners here
+import warnings
+
+from lsimons_bot.listeners.views import register
+
+warnings.warn(
+    "Importing from 'listeners.views' is deprecated. "
+    "Please use 'lsimons_bot.listeners.views' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+__all__ = ["register"]

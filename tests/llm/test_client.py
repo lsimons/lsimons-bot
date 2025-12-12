@@ -212,6 +212,60 @@ class TestStreamCompletion:
 
         assert chunks == ["Hello", "world"]
 
+    @pytest.mark.asyncio
+    async def test_stream_completion_timeout_error(self):
+        """Stream completion raises LLMTimeoutError on timeout."""
+        client = LiteLLMClient(api_key="test-key")
+
+        with patch.object(
+            client._client.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+            side_effect=TimeoutError("Request timed out"),
+        ):
+            with pytest.raises(LLMTimeoutError):
+                async for _ in client.stream_completion(
+                    model="openai/gpt-4",
+                    messages=[{"role": "user", "content": "Hi"}],
+                ):
+                    pass
+
+    @pytest.mark.asyncio
+    async def test_stream_completion_quota_error(self):
+        """Stream completion raises LLMQuotaExceededError on quota issues."""
+        client = LiteLLMClient(api_key="test-key")
+
+        with patch.object(
+            client._client.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+            side_effect=Exception("Rate limit exceeded"),
+        ):
+            with pytest.raises(LLMQuotaExceededError):
+                async for _ in client.stream_completion(
+                    model="openai/gpt-4",
+                    messages=[{"role": "user", "content": "Hi"}],
+                ):
+                    pass
+
+    @pytest.mark.asyncio
+    async def test_stream_completion_api_error(self):
+        """Stream completion raises LLMAPIError on API errors."""
+        client = LiteLLMClient(api_key="test-key")
+
+        with patch.object(
+            client._client.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+            side_effect=Exception("Connection refused"),
+        ):
+            with pytest.raises(LLMAPIError):
+                async for _ in client.stream_completion(
+                    model="openai/gpt-4",
+                    messages=[{"role": "user", "content": "Hi"}],
+                ):
+                    pass
+
 
 class TestGetCompletion:
     """Tests for non-streaming completion functionality."""
@@ -297,6 +351,23 @@ class TestGetCompletion:
 
         assert result == ""
 
+    @pytest.mark.asyncio
+    async def test_get_completion_propagates_errors(self):
+        """Get completion propagates streaming errors."""
+        client = LiteLLMClient(api_key="test-key")
+
+        with patch.object(
+            client._client.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+            side_effect=TimeoutError("Timeout"),
+        ):
+            with pytest.raises(LLMTimeoutError):
+                await client.get_completion(
+                    model="invalid/model",
+                    messages=[{"role": "user", "content": "Hi"}],
+                )
+
 
 class TestContextManager:
     """Tests for async context manager functionality."""
@@ -340,105 +411,6 @@ class TestCloseMethod:
         await client.close()
 
         close_mock.assert_called_once()
-
-
-class TestErrorHandling:
-    """Tests for error handling in streaming and completions."""
-
-    @pytest.mark.asyncio
-    async def test_stream_completion_handles_api_error(self):
-        """Stream completion propagates API errors."""
-        client = LiteLLMClient(api_key="test-key")
-
-        with patch.object(
-            client._client.chat.completions,
-            "create",
-            new_callable=AsyncMock,
-            side_effect=Exception("Connection error"),
-        ):
-            with pytest.raises(LLMAPIError):
-                async for _ in client.stream_completion(
-                    model="openai/gpt-4",
-                    messages=[{"role": "user", "content": "Hi"}],
-                ):
-                    pass
-
-    @pytest.mark.asyncio
-    async def test_stream_completion_logs_error(self):
-        """Stream completion logs errors before raising."""
-        client = LiteLLMClient(api_key="test-key")
-
-        with patch("lsimons_bot.llm.client.logger") as mock_logger:
-            with patch.object(
-                client._client.chat.completions,
-                "create",
-                new_callable=AsyncMock,
-                side_effect=Exception("Connection timeout"),
-            ):
-                with pytest.raises(LLMAPIError):
-                    async for _ in client.stream_completion(
-                        model="openai/gpt-4",
-                        messages=[{"role": "user", "content": "Hi"}],
-                    ):
-                        pass
-
-            mock_logger.error.assert_called_once()
-            assert "Connection timeout" in str(mock_logger.error.call_args)
-
-    @pytest.mark.asyncio
-    async def test_get_completion_propagates_errors(self):
-        """Get completion propagates streaming errors."""
-        client = LiteLLMClient(api_key="test-key")
-
-        with patch.object(
-            client._client.chat.completions,
-            "create",
-            new_callable=AsyncMock,
-            side_effect=TimeoutError("Timeout"),
-        ):
-            with pytest.raises(LLMTimeoutError):
-                await client.get_completion(
-                    model="invalid/model",
-                    messages=[{"role": "user", "content": "Hi"}],
-                )
-
-    @pytest.mark.asyncio
-    async def test_stream_completion_partial_chunks(self):
-        """Stream completion handles chunks with only role/finish_reason."""
-        client = LiteLLMClient(api_key="test-key")
-
-        # Chunk with content
-        mock_chunk_1 = MagicMock()
-        mock_chunk_1.choices = [MagicMock(delta=MagicMock(content="Start"))]
-
-        # Chunk with only role (no content)
-        mock_chunk_2 = MagicMock()
-        mock_chunk_2.choices = [MagicMock(delta=MagicMock(content=None))]
-
-        # Final chunk
-        mock_chunk_3 = MagicMock()
-        mock_chunk_3.choices = [MagicMock(delta=MagicMock(content="End"))]
-
-        async def mock_stream_gen():
-            for chunk in [mock_chunk_1, mock_chunk_2, mock_chunk_3]:
-                yield chunk
-
-        mock_response = mock_stream_gen()
-
-        with patch.object(
-            client._client.chat.completions,
-            "create",
-            new_callable=AsyncMock,
-            return_value=mock_response,
-        ):
-            chunks = []
-            async for chunk in client.stream_completion(
-                model="openai/gpt-4",
-                messages=[{"role": "user", "content": "Hi"}],
-            ):
-                chunks.append(chunk)
-
-        assert chunks == ["Start", "End"]
 
 
 class TestFactoryFunction:

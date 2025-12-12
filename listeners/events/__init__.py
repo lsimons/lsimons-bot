@@ -1,10 +1,18 @@
-from slack_bolt import App
+"""Backward-compatible imports for events listeners.
 
-from .assistant_thread_started import assistant_thread_started_handler
-from .assistant_user_message import assistant_user_message_handler
+This module re-exports from lsimons_bot.listeners.events for backward compatibility.
+New code should import from lsimons_bot.listeners.events instead.
+"""
 
+import warnings
 
-def register(app: App) -> None:
-    """Register event listeners with the Slack app."""
-    _ = app.event("assistant_thread_started")(assistant_thread_started_handler)
-    _ = app.event("assistant_user_message")(assistant_user_message_handler)
+from lsimons_bot.listeners.events import register
+
+warnings.warn(
+    "Importing from 'listeners.events' is deprecated. "
+    "Please use 'lsimons_bot.listeners.events' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+__all__ = ["register"]
