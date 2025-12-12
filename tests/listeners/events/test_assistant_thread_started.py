@@ -4,12 +4,9 @@ import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from slack_sdk.errors import SlackApiError
 
 from lsimons_bot.listeners.events.assistant_thread_started import (
-    ThreadStartedRequest,
     _extract_thread_data,
-    _initialize_thread,
     assistant_thread_started_handler,
 )
 from lsimons_bot.slack import InvalidRequestError
@@ -31,12 +28,8 @@ class TestAssistantThreadStartedHandler:
             "user_id": "U123",
         }
 
-        with patch(
-            "lsimons_bot.listeners.events.assistant_thread_started.get_channel_info"
-        ) as mock_get_channel:
-            with patch(
-                "lsimons_bot.listeners.events.assistant_thread_started.set_thread_status"
-            ) as mock_set_status:
+        with patch("lsimons_bot.listeners.events.assistant_thread_started.get_channel_info") as mock_get_channel:
+            with patch("lsimons_bot.listeners.events.assistant_thread_started.set_thread_status") as mock_set_status:
                 with patch(
                     "lsimons_bot.listeners.events.assistant_thread_started.set_suggested_prompts"
                 ) as mock_set_prompts:
@@ -50,9 +43,7 @@ class TestAssistantThreadStartedHandler:
                     )
                     mock_get_channel.return_value = mock_channel_info
 
-                    await assistant_thread_started_handler(
-                        ack, body, client, test_logger
-                    )
+                    await assistant_thread_started_handler(ack, body, client, test_logger)
 
                     ack.assert_called_once()
                     mock_set_status.assert_called_once()
@@ -105,9 +96,7 @@ class TestAssistantThreadStartedHandler:
             "user_id": "U123",
         }
 
-        with patch(
-            "lsimons_bot.listeners.events.assistant_thread_started.get_channel_info"
-        ) as mock_get_channel:
+        with patch("lsimons_bot.listeners.events.assistant_thread_started.get_channel_info") as mock_get_channel:
             from lsimons_bot.slack import SlackChannelError
 
             mock_get_channel.side_effect = SlackChannelError("Channel not found")

@@ -221,7 +221,7 @@ uv run flake8 app.py app_oauth.py lsimons_bot tests
 Run basedpyright for strict type checking:
 
 ```zsh
-basedpyright listeners/
+basedpyright lsimons_bot
 ```
 
 **Note**: If basedpyright is not installed, install it globally:

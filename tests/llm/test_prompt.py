@@ -9,8 +9,6 @@ Tests cover:
 - Message context building
 """
 
-import pytest
-
 from lsimons_bot.llm.prompt import (
     build_message_context,
     build_system_prompt,

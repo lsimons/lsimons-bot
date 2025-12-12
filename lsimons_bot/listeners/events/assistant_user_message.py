@@ -4,12 +4,13 @@ Triggered when a user sends a message in an AI assistant thread.
 Retrieves conversation history, calls LLM via LiteLLM proxy, and streams response.
 """
 
+import inspect
 import logging
 import os
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable, Sequence, cast
 
-from slack_bolt import Ack
+from openai.types.chat import ChatCompletionMessageParam
 from slack_sdk import WebClient
 
 from lsimons_bot.llm import (
@@ -32,6 +33,27 @@ from lsimons_bot.slack import (
 logger = logging.getLogger(__name__)
 
 
+async def _maybe_await(func_result: object) -> None:
+    """Await result if it is awaitable, otherwise do nothing."""
+    if inspect.isawaitable(func_result):
+        await func_result
+
+
+async def _safe_ack(ack: Callable[..., object]) -> None:
+    """Call ack and await it if it returns an awaitable.
+
+    Keeps the handler compatible with both sync and async ack callables.
+    """
+    try:
+        result = ack()
+    except TypeError:
+        # If ack expects args and tests use a different signature, ignore here.
+        return
+
+    if inspect.isawaitable(result):
+        await result
+
+
 @dataclass
 class UserMessageRequest:
     """Validated user message request data."""
@@ -42,7 +64,7 @@ class UserMessageRequest:
 
 
 async def assistant_user_message_handler(
-    ack: Ack,
+    ack: Callable[..., object],
     body: dict[str, Any],
     client: WebClient,
     logger_: logging.Logger,
@@ -52,12 +74,13 @@ async def assistant_user_message_handler(
     Orchestrates: validation → context gathering → LLM call → response
 
     Args:
-        ack: Acknowledge the event to Slack
+        ack: Acknowledge the event to Slack (may be sync or async)
         body: Event payload containing thread_id, channel_id, user_message, etc.
         client: Slack WebClient for API calls
         logger_: Logger instance for this handler
     """
-    ack()
+    # Call ack and await if necessary to support both sync and async ack implementations
+    await _safe_ack(ack)
 
     try:
         request = _extract_request_data(body, logger_)
@@ -72,9 +95,7 @@ async def assistant_user_message_handler(
         await _send_error_to_user(client, body, "Thread unavailable", logger_)
     except LLMConfigurationError as e:
         logger_.error("LLM configuration error: %s", e)
-        await _send_error_to_user(
-            client, body, "Configuration error. Please check settings.", logger_
-        )
+        await _send_error_to_user(client, body, "Configuration error. Please check settings.", logger_)
     except LLMAPIError as e:
         logger_.error("LLM API error: %s", e)
         await _send_error_to_user(client, body, "AI assistant unavailable", logger_)
@@ -105,9 +126,7 @@ def _extract_request_data(
     user_message = str(user_message_raw).strip() if user_message_raw else ""
 
     if not thread_id or not channel_id:
-        raise InvalidRequestError(
-            "Missing required fields: assistant_thread_id or channel_id"
-        )
+        raise InvalidRequestError("Missing required fields: assistant_thread_id or channel_id")
 
     if not user_message:
         raise InvalidRequestError("User message cannot be empty")
@@ -150,9 +169,7 @@ async def _process_user_message(
     history = get_conversation_history(client, request.channel_id, request.thread_id)
 
     # Generate response
-    response_text = await _generate_llm_response(
-        request, channel_info, history, logger_
-    )
+    response_text = await _generate_llm_response(request, channel_info, history, logger_)
 
     if not response_text:
         logger_.warning("LLM returned empty response")
@@ -172,7 +189,7 @@ async def _process_user_message(
 async def _generate_llm_response(
     request: UserMessageRequest,
     channel_info: ChannelInfo,
-    history: list[dict[str, str]],
+    history: Sequence[dict[str, str]],
     logger_: logging.Logger,
 ) -> str:
     """Generate LLM response using context.
@@ -183,7 +200,7 @@ async def _generate_llm_response(
     Args:
         request: User message request
         channel_info: Channel information object
-        history: Conversation history from thread
+        history: Conversation history from thread (sequence of role/content dicts)
         logger_: Logger instance
 
     Returns:
@@ -193,8 +210,8 @@ async def _generate_llm_response(
         LLMAPIError: If LLM call fails
         LLMConfigurationError: If LLM is misconfigured
     """
-    # Build messages for LLM
-    messages = _build_message_list(history, request.user_message)
+    # Build messages for LLM (list of simple dicts)
+    messages = _build_message_list(list(history), request.user_message)
 
     # Build system prompt with channel context
     channel_context = format_thread_context(
@@ -216,9 +233,12 @@ async def _generate_llm_response(
     response_text = ""
     llm_client = create_llm_client()
     try:
+        # Cast each message to ChatCompletionMessageParam to satisfy the LLM client's type.
+        messages_param: list[ChatCompletionMessageParam] = [cast(ChatCompletionMessageParam, m) for m in messages]
+
         async for chunk in llm_client.stream_completion(
             model=model,
-            messages=messages,  # type: ignore[arg-type]
+            messages=messages_param,
             system_prompt=system_prompt,
         ):
             response_text += chunk

@@ -1,7 +1,7 @@
 """Tests for assistant_feedback action handler."""
 
 import logging
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from slack_sdk.errors import SlackApiError
@@ -12,7 +12,7 @@ from lsimons_bot.listeners.actions.assistant_feedback import (
     _log_feedback,
     assistant_feedback_handler,
 )
-from lsimons_bot.slack import InvalidRequestError, SlackAPIError
+from lsimons_bot.slack import InvalidRequestError
 
 
 class TestAssistantFeedbackHandler:

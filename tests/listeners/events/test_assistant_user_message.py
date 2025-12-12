@@ -34,15 +34,9 @@ class TestAssistantUserMessageHandler:
             "text": "What is machine learning?",
         }
 
-        with patch(
-            "lsimons_bot.listeners.events.assistant_user_message.get_channel_info"
-        ) as mock_get_channel:
-            with patch(
-                "lsimons_bot.listeners.events.assistant_user_message.get_conversation_history"
-            ) as mock_get_history:
-                with patch(
-                    "lsimons_bot.listeners.events.assistant_user_message.create_llm_client"
-                ) as mock_llm:
+        with patch("lsimons_bot.listeners.events.assistant_user_message.get_channel_info") as mock_get_channel:
+            with patch("lsimons_bot.listeners.events.assistant_user_message.get_conversation_history") as mock_get_history:
+                with patch("lsimons_bot.listeners.events.assistant_user_message.create_llm_client") as mock_llm:
                     mock_channel = MagicMock()
                     mock_channel.name = "general"
                     mock_channel.topic = "General discussion"
@@ -51,17 +45,11 @@ class TestAssistantUserMessageHandler:
                     mock_get_history.return_value = []
 
                     mock_llm_client = AsyncMock()
-                    mock_llm_client.stream_completion = MagicMock(
-                        return_value=async_generator(["Response"])
-                    )
+                    mock_llm_client.stream_completion = MagicMock(return_value=async_generator(["Response"]))
                     mock_llm.return_value = mock_llm_client
 
-                    with patch(
-                        "lsimons_bot.listeners.events.assistant_user_message.set_thread_status"
-                    ):
-                        await assistant_user_message_handler(
-                            ack, body, client, test_logger
-                        )
+                    with patch("lsimons_bot.listeners.events.assistant_user_message.set_thread_status"):
+                        await assistant_user_message_handler(ack, body, client, test_logger)
 
                     ack.assert_called_once()
 
@@ -147,9 +135,7 @@ class TestAssistantUserMessageHandler:
             "text": "Hello",
         }
 
-        with patch(
-            "lsimons_bot.listeners.events.assistant_user_message.get_channel_info"
-        ) as mock_get_channel:
+        with patch("lsimons_bot.listeners.events.assistant_user_message.get_channel_info") as mock_get_channel:
             from lsimons_bot.slack import SlackChannelError
 
             mock_get_channel.side_effect = SlackChannelError("Channel not found")
@@ -172,18 +158,10 @@ class TestAssistantUserMessageHandler:
             "text": "Hello",
         }
 
-        with patch(
-            "lsimons_bot.listeners.events.assistant_user_message.get_channel_info"
-        ) as mock_get_channel:
-            with patch(
-                "lsimons_bot.listeners.events.assistant_user_message.get_conversation_history"
-            ) as mock_get_history:
-                with patch(
-                    "lsimons_bot.listeners.events.assistant_user_message.set_thread_status"
-                ):
-                    with patch(
-                        "lsimons_bot.listeners.events.assistant_user_message.create_llm_client"
-                    ) as mock_llm:
+        with patch("lsimons_bot.listeners.events.assistant_user_message.get_channel_info") as mock_get_channel:
+            with patch("lsimons_bot.listeners.events.assistant_user_message.get_conversation_history") as mock_get_history:
+                with patch("lsimons_bot.listeners.events.assistant_user_message.set_thread_status"):
+                    with patch("lsimons_bot.listeners.events.assistant_user_message.create_llm_client") as mock_llm:
                         from lsimons_bot.llm.exceptions import LLMAPIError
                         from lsimons_bot.slack import ChannelInfo
 
@@ -197,14 +175,10 @@ class TestAssistantUserMessageHandler:
                         mock_get_history.return_value = []
 
                         mock_client = AsyncMock()
-                        mock_client.stream_completion = MagicMock(
-                            side_effect=LLMAPIError("LLM error")
-                        )
+                        mock_client.stream_completion = MagicMock(side_effect=LLMAPIError("LLM error"))
                         mock_llm.return_value = mock_client
 
-                        await assistant_user_message_handler(
-                            ack, body, client, test_logger
-                        )
+                        await assistant_user_message_handler(ack, body, client, test_logger)
 
                         ack.assert_called_once()
                         test_logger.error.assert_called()
@@ -222,9 +196,7 @@ class TestAssistantUserMessageHandler:
             "text": "Hello",
         }
 
-        with patch(
-            "lsimons_bot.listeners.events.assistant_user_message.get_channel_info"
-        ) as mock_get_channel:
+        with patch("lsimons_bot.listeners.events.assistant_user_message.get_channel_info") as mock_get_channel:
             from lsimons_bot.slack import SlackChannelError
 
             mock_get_channel.side_effect = SlackChannelError("Channel not found")

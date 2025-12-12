@@ -12,7 +12,7 @@ Tests cover:
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from openai import APIConnectionError, APIError, AuthenticationError, RateLimitError
+from openai import APIError, RateLimitError
 
 from lsimons_bot.llm.client import LiteLLMClient, create_llm_client
 from lsimons_bot.llm.exceptions import (

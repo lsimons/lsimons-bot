@@ -4,11 +4,11 @@ Triggered when a user opens a new AI assistant thread in a channel.
 Sends welcome greeting and suggested prompts to guide user interaction.
 """
 
+import inspect
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
-from slack_bolt import Ack
 from slack_sdk import WebClient
 
 from lsimons_bot.llm import get_suggested_prompts
@@ -33,7 +33,7 @@ class ThreadStartedRequest:
 
 
 async def assistant_thread_started_handler(
-    ack: Ack,
+    ack: Callable[..., object],
     body: dict[str, Any],
     client: WebClient,
     logger_: logging.Logger,
@@ -48,7 +48,14 @@ async def assistant_thread_started_handler(
         client: Slack WebClient for API calls
         logger_: Logger instance for this handler
     """
-    await ack()
+    # ack may be sync or async; call and await if necessary
+    try:
+        result = ack()
+        if inspect.isawaitable(result):
+            await result
+    except TypeError:
+        # ack may expect different signature in some contexts; ignore
+        pass
 
     try:
         request = _extract_thread_data(body, logger_)

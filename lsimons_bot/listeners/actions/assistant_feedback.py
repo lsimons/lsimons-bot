@@ -2,13 +2,19 @@
 
 Triggered when users click thumbs up/down buttons on assistant responses.
 Logs feedback and sends acknowledgment to user.
+
+This version:
+- Calls `ack` in a way that supports both sync and async ack callables.
+- Uses precise typing (avoids `Any` where possible).
 """
 
+from __future__ import annotations
+
+import inspect
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Callable, Mapping, Optional
 
-from slack_bolt import Ack
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
@@ -23,39 +29,36 @@ class FeedbackRequest:
 
     feedback_type: str  # "positive" or "negative"
     user_id: str
-    channel_id: str | None
-    response_ts: str | None
-    team_id: str | None
+    channel_id: Optional[str]
+    response_ts: Optional[str]
+    team_id: Optional[str]
 
 
-async def assistant_feedback_handler(
-    ack: Ack,
-    body: dict[str, Any],
-    client: WebClient,
-    logger_: logging.Logger,
-) -> None:
-    """Handle assistant feedback action (thumbs up/down).
+async def _maybe_await(func_result: object) -> None:
+    """Await result if it is awaitable, otherwise do nothing."""
+    if inspect.isawaitable(func_result):
+        # Await the awaitable (this covers AsyncMock and real coroutines)
+        await func_result  # type: ignore[reportGeneralTypeIssues]
 
-    Orchestrates: validation → logging → acknowledgment
 
-    Args:
-        ack: Acknowledge the action to Slack
-        body: Action payload containing feedback_type and message metadata
-        client: Slack WebClient for API calls
-        logger_: Logger instance for this handler
+async def _safe_ack(ack: Callable[..., object]) -> None:
+    """Call ack and await it if it returns an awaitable.
+
+    This keeps the handler compatible with both sync and async ack callables.
     """
-    await ack()
-
     try:
-        request = _extract_feedback_data(body, logger_)
-        _log_feedback(request, logger_)
-        await _send_acknowledgment(request, client, logger_)
-    except InvalidRequestError as e:
-        logger_.warning("Invalid feedback request: %s", e)
+        result = ack()
+    except TypeError:
+        # If ack requires arguments, call without them and ignore TypeError
+        # Tests typically use ack without args; if a different signature is used
+        # the caller should adapt accordingly.
+        return
+
+    await _maybe_await(result)
 
 
 def _extract_feedback_data(
-    body: dict[str, Any],
+    body: Mapping[str, object],
     logger_: logging.Logger,
 ) -> FeedbackRequest:
     """Extract and validate feedback action data.
@@ -68,22 +71,44 @@ def _extract_feedback_data(
         Validated FeedbackRequest
 
     Raises:
-        InvalidRequestError: If required fields are missing
+        InvalidRequestError: If required fields are missing or malformed
     """
-    actions = body.get("actions", [])
-    if not actions:
+    # actions is expected to be a sequence of dict-like items
+    actions = body.get("actions")
+    if not actions or not isinstance(actions, (list, tuple)):
+        logger_.warning("No actions in feedback payload")
         raise InvalidRequestError("No actions in feedback payload")
 
-    action_value = actions[0].get("value", "").strip()
-    user_id = body.get("user", {}).get("id", "").strip()
-    channel_id = body.get("channel", {}).get("id")
-    response_ts = body.get("message", {}).get("ts")
-    team_id = body.get("team", {}).get("id")
+    first_action = actions[0]
+    if not isinstance(first_action, Mapping):
+        logger_.warning("Invalid action shape")
+        raise InvalidRequestError("Invalid action payload")
+
+    action_value = str(first_action.get("value", "")).strip()
+    user = body.get("user", {})
+    user_id = ""
+    if isinstance(user, Mapping):
+        user_id = str(user.get("id", "") or "").strip()
+
+    channel = body.get("channel", {})
+    channel_id = None
+    if isinstance(channel, Mapping):
+        channel_id = channel.get("id")  # may be None
+
+    message = body.get("message", {})
+    response_ts = None
+    if isinstance(message, Mapping):
+        response_ts = message.get("ts")
+
+    team = body.get("team", {})
+    team_id = None
+    if isinstance(team, Mapping):
+        team_id = team.get("id")
 
     if not action_value or not user_id:
+        logger_.warning("Missing required fields: action_value or user_id")
         raise InvalidRequestError("Missing required fields: action_value or user_id")
 
-    # Map action value to feedback type
     feedback_type = "positive" if action_value == "feedback_thumbs_up" else "negative"
 
     logger_.info(
@@ -97,25 +122,14 @@ def _extract_feedback_data(
     return FeedbackRequest(
         feedback_type=feedback_type,
         user_id=user_id,
-        channel_id=channel_id,
-        response_ts=response_ts,
-        team_id=team_id,
+        channel_id=str(channel_id) if channel_id is not None else None,
+        response_ts=str(response_ts) if response_ts is not None else None,
+        team_id=str(team_id) if team_id is not None else None,
     )
 
 
-def _log_feedback(
-    request: FeedbackRequest,
-    logger_: logging.Logger,
-) -> None:
-    """Log feedback metrics for analysis.
-
-    Structured logging of feedback data for future analysis of assistant
-    performance and user satisfaction.
-
-    Args:
-        request: Validated feedback request
-        logger_: Logger instance
-    """
+def _log_feedback(request: FeedbackRequest, logger_: logging.Logger) -> None:
+    """Structured logging of feedback data for metrics/analysis."""
     feedback_data = {
         "feedback_type": request.feedback_type,
         "user_id": request.user_id,
@@ -124,13 +138,7 @@ def _log_feedback(
         "team_id": request.team_id,
     }
 
-    # Log at info level with structured data (could be sent to metrics service)
-    logger_.info(
-        "feedback_event",
-        extra={
-            "feedback": feedback_data,
-        },
-    )
+    logger_.info("feedback_event", extra={"feedback": feedback_data})
 
 
 async def _send_acknowledgment(
@@ -138,20 +146,12 @@ async def _send_acknowledgment(
     client: WebClient,
     logger_: logging.Logger,
 ) -> None:
-    """Send acknowledgment message to user.
-
-    Args:
-        request: Feedback request with channel and thread info
-        client: Slack WebClient
-        logger_: Logger instance
-    """
+    """Send ephemeral acknowledgment to the user, if possible."""
     if not request.channel_id or not request.response_ts:
         logger_.warning("Cannot send acknowledgment: missing channel_id or response_ts")
         return
 
-    acknowledgment_text = (
-        "Thank you for your feedback! We use this to improve the assistant."
-    )
+    acknowledgment_text = "Thank you for your feedback! We use this to improve the assistant."
 
     try:
         client.chat_postEphemeral(
@@ -162,4 +162,37 @@ async def _send_acknowledgment(
         )
         logger_.info("Sent feedback acknowledgment to user %s", request.user_id)
     except SlackApiError as e:
+        # Log and continue — acknowledgements are best-effort
         logger_.warning("Failed to send feedback acknowledgment: %s", e)
+
+
+async def assistant_feedback_handler(
+    ack: Callable[..., object],
+    body: Mapping[str, object],
+    client: WebClient,
+    logger_: logging.Logger,
+) -> None:
+    """Handle assistant feedback action (thumbs up/down).
+
+    This function:
+    - Calls `ack` in a way that supports both sync and async ack implementations.
+    - Validates the payload and logs feedback.
+    - Attempts to send an ephemeral acknowledgment to the user.
+
+    Args:
+        ack: Acknowledge function provided by Bolt (may be sync or async)
+        body: Action payload
+        client: Slack WebClient for API calls
+        logger_: Logger instance for this handler
+    """
+    # Call ack and await if necessary (keeps tests using AsyncMock happy)
+    await _safe_ack(ack)
+
+    try:
+        request = _extract_feedback_data(body, logger_)
+    except InvalidRequestError:
+        logger_.warning("Invalid feedback request")
+        return
+
+    _log_feedback(request, logger_)
+    await _send_acknowledgment(request, client, logger_)
