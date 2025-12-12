@@ -15,8 +15,19 @@ This document provides instructions for AI code-generation agents.
 
 ```
 lsimons-bot/
-├── TODO
-└── [config files]        # Root-level configuration
+├── listeners/             # Slack Bolt listener categories (actions, commands, events, messages, shortcuts, views)
+│   ├── actions/
+│   ├── commands/
+│   ├── events/
+│   ├── messages/
+│   ├── shortcuts/
+│   └── views/
+├── tests/                 # Unit tests organized by feature/category
+├── docs/
+│   └── spec/              # Persistent specs (000, 001, 002...)
+├── history/               # AI-generated planning/ephemeral docs
+├── .beads/                # bd (beads) issue tracking files
+└── [config files]         # Root-level configuration
 ```
 
 ## Issue Tracking with bd (beads)
@@ -132,7 +143,7 @@ For example: `bd create --help` shows `--parent`, `--deps`, `--assignee`, etc.
 ### Specs
 
 - All significant changes need a spec.
-- See [docs/spec/001-spec-based-development.md] for how to write specs.
+- See [docs/spec/001-spec-based-development.md] for how to write specs, and refer to [docs/spec/002-slack-listener-patterns.md] for repository listener conventions and registration patterns.
 - Common patterns are in [docs/spec/000-shared-patterns.md] to keep individual specs short.
 
 ### Code Quality Requirements
