@@ -1,4 +1,4 @@
-# GitHub Copilot Repository Onboarding Instructions
+# GitHub Copilot Instructions for lsimons-bot
 
 See [AGENTS.md](../AGENTS.md) for your instructions.
 
