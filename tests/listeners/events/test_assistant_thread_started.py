@@ -82,7 +82,12 @@ class TestAssistantThreadStartedHandler:
         # Assert warning was logged about invalid request
         log_call_args = test_logger.warning.call_args
         logged_message = log_call_args[0][0]
-        assert "Invalid" in logged_message or "invalid" in logged_message or "Missing" in logged_message or "missing" in logged_message
+        assert (
+            "Invalid" in logged_message
+            or "invalid" in logged_message
+            or "Missing" in logged_message
+            or "missing" in logged_message
+        )
 
     @pytest.mark.asyncio
     async def test_handler_missing_channel_id(self) -> None:
@@ -103,7 +108,12 @@ class TestAssistantThreadStartedHandler:
         # Assert warning was logged about invalid request
         log_call_args = test_logger.warning.call_args
         logged_message = log_call_args[0][0]
-        assert "Invalid" in logged_message or "invalid" in logged_message or "Missing" in logged_message or "missing" in logged_message
+        assert (
+            "Invalid" in logged_message
+            or "invalid" in logged_message
+            or "Missing" in logged_message
+            or "missing" in logged_message
+        )
 
     @pytest.mark.asyncio
     async def test_handler_channel_info_error(self, fake_slack) -> None:
@@ -133,7 +143,11 @@ class TestAssistantThreadStartedHandler:
             # Assert error was logged about channel info failure
             log_call_args = test_logger.error.call_args
             logged_message = log_call_args[0][0]
-            assert "channel" in logged_message.lower() or "failed" in logged_message.lower() or "error" in logged_message.lower()
+            assert (
+                "channel" in logged_message.lower()
+                or "failed" in logged_message.lower()
+                or "error" in logged_message.lower()
+            )
 
 
 class TestExtractThreadData:

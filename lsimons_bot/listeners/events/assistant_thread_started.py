@@ -81,9 +81,7 @@ def _extract_thread_data(
     user_id = body.get("user_id", "").strip()
 
     if not thread_id or not channel_id:
-        raise InvalidRequestError(
-            "Missing required fields: assistant_thread_id or channel_id"
-        )
+        raise InvalidRequestError("Missing required fields: assistant_thread_id or channel_id")
 
     logger_.info(
         "Assistant thread started - thread: %s, channel: %s, user: %s",

@@ -128,9 +128,7 @@ async def _send_acknowledgment(
         logger_.warning("Cannot send acknowledgment: missing channel_id or response_ts")
         return
 
-    acknowledgment_text = (
-        "Thank you for your feedback! We use this to improve the assistant."
-    )
+    acknowledgment_text = "Thank you for your feedback! We use this to improve the assistant."
 
     try:
         client.chat_postEphemeral(

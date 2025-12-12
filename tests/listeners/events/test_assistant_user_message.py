@@ -400,9 +400,7 @@ class TestSendErrorToUser:
         ):
             await _send_error_to_user(client, body, "Error message", test_logger)
 
-            fake_slack.set_thread_status.assert_called_once_with(
-                client, "C123", "thread-123", "waiting_on_user"
-            )
+            fake_slack.set_thread_status.assert_called_once_with(client, "C123", "thread-123", "waiting_on_user")
 
     @pytest.mark.asyncio
     async def test_send_error_to_user_missing_thread_id(self) -> None:

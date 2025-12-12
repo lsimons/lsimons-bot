@@ -177,7 +177,12 @@ class TestAssistantFeedbackHandler:
         # Assert warning was logged about the Slack API error
         log_call_args = test_logger.warning.call_args
         logged_message = log_call_args[0][0]
-        assert "channel_not_found" in logged_message or "Slack" in logged_message or "Failed" in logged_message or "failed" in logged_message
+        assert (
+            "channel_not_found" in logged_message
+            or "Slack" in logged_message
+            or "Failed" in logged_message
+            or "failed" in logged_message
+        )
 
     @pytest.mark.asyncio
     async def test_handler_unexpected_error(self) -> None:
@@ -206,7 +211,12 @@ class TestAssistantFeedbackHandler:
         # Assert warning was logged about the Slack API error
         log_call_args = test_logger.warning.call_args
         logged_message = log_call_args[0][0]
-        assert "api_error" in logged_message or "Slack" in logged_message or "Failed" in logged_message or "failed" in logged_message
+        assert (
+            "api_error" in logged_message
+            or "Slack" in logged_message
+            or "Failed" in logged_message
+            or "failed" in logged_message
+        )
 
     @pytest.mark.asyncio
     async def test_handler_without_optional_fields(self) -> None:
