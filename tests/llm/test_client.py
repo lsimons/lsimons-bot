@@ -4,7 +4,7 @@ Tests cover:
 - Client initialization with various configurations
 - Streaming completions with proper chunk handling
 - Non-streaming completions
-- Error handling (API errors, connection errors, rate limiting)
+- Error handling (API errors, connection errors, rate limiting, authentication)
 - System prompt injection
 - Async context manager
 """
@@ -12,7 +12,7 @@ Tests cover:
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from openai import APIError, RateLimitError
+from openai import APIConnectionError, APIError, AuthenticationError, RateLimitError
 
 from lsimons_bot.llm.client import LiteLLMClient, create_llm_client
 from lsimons_bot.llm.exceptions import (
@@ -265,6 +265,50 @@ class TestStreamCompletion:
             "create",
             new_callable=AsyncMock,
             side_effect=raise_api_error,
+        ):
+            with pytest.raises(LLMAPIError):
+                async for _ in client.stream_completion(
+                    model="openai/gpt-4",
+                    messages=[{"role": "user", "content": "Hi"}],
+                ):
+                    pass
+
+    @pytest.mark.asyncio
+    async def test_stream_completion_connection_error(self):
+        """Stream completion raises LLMAPIError on connection errors."""
+        client = LiteLLMClient(api_key="test-key")
+
+        async def raise_connection_error(*args, **kwargs):
+            raise APIConnectionError(message="Connection refused", request=MagicMock())
+
+        with patch.object(
+            client._client.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+            side_effect=raise_connection_error,
+        ):
+            with pytest.raises(LLMAPIError):
+                async for _ in client.stream_completion(
+                    model="openai/gpt-4",
+                    messages=[{"role": "user", "content": "Hi"}],
+                ):
+                    pass
+
+    @pytest.mark.asyncio
+    async def test_stream_completion_authentication_error(self):
+        """Stream completion raises LLMAPIError on authentication errors."""
+        client = LiteLLMClient(api_key="test-key")
+
+        async def raise_auth_error(*args, **kwargs):
+            raise AuthenticationError(
+                "Invalid API key", response=MagicMock(), body=None
+            )
+
+        with patch.object(
+            client._client.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+            side_effect=raise_auth_error,
         ):
             with pytest.raises(LLMAPIError):
                 async for _ in client.stream_completion(
