@@ -12,6 +12,7 @@ Tests cover:
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from openai import APIError
 
 from lsimons_bot.llm.client import LiteLLMClient, create_llm_client
 from lsimons_bot.llm.exceptions import (
@@ -350,11 +351,14 @@ class TestErrorHandling:
         """Stream completion propagates API errors."""
         client = LiteLLMClient(api_key="test-key")
 
+        async def raise_api_error(*args, **kwargs):
+            raise APIError("Connection error", request=MagicMock(), body=None)
+
         with patch.object(
             client._client.chat.completions,
             "create",
             new_callable=AsyncMock,
-            side_effect=Exception("Connection error"),
+            side_effect=raise_api_error,
         ):
             with pytest.raises(LLMAPIError):
                 async for _ in client.stream_completion(
@@ -369,11 +373,15 @@ class TestErrorHandling:
         client = LiteLLMClient(api_key="test-key")
 
         with patch("lsimons_bot.llm.client.logger") as mock_logger:
+
+            async def raise_api_error(*args, **kwargs):
+                raise APIError("Connection timeout", request=MagicMock(), body=None)
+
             with patch.object(
                 client._client.chat.completions,
                 "create",
                 new_callable=AsyncMock,
-                side_effect=Exception("Connection timeout"),
+                side_effect=raise_api_error,
             ):
                 with pytest.raises(LLMAPIError):
                     async for _ in client.stream_completion(

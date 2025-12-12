@@ -1,8 +1,8 @@
-"""Messages listener module."""
+"""Registers message listeners with the Slack app."""
 
 from slack_bolt import App
 
 
-def register(_app: App) -> None:
-    """Register message listeners with the Slack app."""
-    pass
+def register(app: App) -> None:
+    """Register message listeners."""
+    pass  # No message listeners are currently implemented

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from slack_sdk.errors import SlackApiError
 
-from listeners.events.assistant_thread_started import (
+from lsimons_bot.listeners.events.assistant_thread_started import (
     ThreadStartedRequest,
     _extract_thread_data,
     _initialize_thread,
@@ -32,13 +32,13 @@ class TestAssistantThreadStartedHandler:
         }
 
         with patch(
-            "listeners.events.assistant_thread_started.get_channel_info"
+            "lsimons_bot.listeners.events.assistant_thread_started.get_channel_info"
         ) as mock_get_channel:
             with patch(
-                "listeners.events.assistant_thread_started.set_thread_status"
+                "lsimons_bot.listeners.events.assistant_thread_started.set_thread_status"
             ) as mock_set_status:
                 with patch(
-                    "listeners.events.assistant_thread_started.set_suggested_prompts"
+                    "lsimons_bot.listeners.events.assistant_thread_started.set_suggested_prompts"
                 ) as mock_set_prompts:
                     from lsimons_bot.slack import ChannelInfo
 
@@ -106,7 +106,7 @@ class TestAssistantThreadStartedHandler:
         }
 
         with patch(
-            "listeners.events.assistant_thread_started.get_channel_info"
+            "lsimons_bot.listeners.events.assistant_thread_started.get_channel_info"
         ) as mock_get_channel:
             from lsimons_bot.slack import SlackChannelError
 

@@ -78,12 +78,6 @@ async def assistant_user_message_handler(
     except LLMAPIError as e:
         logger_.error("LLM API error: %s", e)
         await _send_error_to_user(client, body, "AI assistant unavailable", logger_)
-    except Exception as e:
-        logger_.error(
-            "Unexpected error in assistant_user_message handler: %s",
-            str(e),
-            exc_info=True,
-        )
 
 
 def _extract_request_data(
@@ -228,12 +222,9 @@ async def _generate_llm_response(
             system_prompt=system_prompt,
         ):
             response_text += chunk
-    except ValueError as e:
-        logger_.error("LLM configuration error: %s", str(e))
-        raise LLMConfigurationError(f"Invalid LLM configuration: {e}") from e
-    except Exception as e:
-        logger_.error("LLM request failed: %s", str(e), exc_info=True)
-        raise LLMAPIError(f"LLM request failed: {e}") from e
+    except (LLMAPIError, LLMConfigurationError):
+        # Re-raise LLM exceptions (already wrapped with context)
+        raise
     finally:
         await llm_client.close()
 
@@ -286,5 +277,5 @@ async def _send_error_to_user(
 
     try:
         set_thread_status(client, channel_id, thread_id, "waiting_on_user")
-    except Exception as e:
+    except SlackThreadError as e:
         logger_.warning("Failed to set error status: %s", e)

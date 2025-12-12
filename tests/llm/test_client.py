@@ -12,6 +12,7 @@ Tests cover:
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from openai import APIConnectionError, APIError, AuthenticationError, RateLimitError
 
 from lsimons_bot.llm.client import LiteLLMClient, create_llm_client
 from lsimons_bot.llm.exceptions import (
@@ -235,11 +236,14 @@ class TestStreamCompletion:
         """Stream completion raises LLMQuotaExceededError on quota issues."""
         client = LiteLLMClient(api_key="test-key")
 
+        async def raise_rate_limit(*args, **kwargs):
+            raise RateLimitError("Rate limit exceeded", response=MagicMock(), body=None)
+
         with patch.object(
             client._client.chat.completions,
             "create",
             new_callable=AsyncMock,
-            side_effect=Exception("Rate limit exceeded"),
+            side_effect=raise_rate_limit,
         ):
             with pytest.raises(LLMQuotaExceededError):
                 async for _ in client.stream_completion(
@@ -253,11 +257,14 @@ class TestStreamCompletion:
         """Stream completion raises LLMAPIError on API errors."""
         client = LiteLLMClient(api_key="test-key")
 
+        async def raise_api_error(*args, **kwargs):
+            raise APIError("Connection refused", request=MagicMock(), body=None)
+
         with patch.object(
             client._client.chat.completions,
             "create",
             new_callable=AsyncMock,
-            side_effect=Exception("Connection refused"),
+            side_effect=raise_api_error,
         ):
             with pytest.raises(LLMAPIError):
                 async for _ in client.stream_completion(
@@ -360,7 +367,7 @@ class TestGetCompletion:
             client._client.chat.completions,
             "create",
             new_callable=AsyncMock,
-            side_effect=TimeoutError("Timeout"),
+            side_effect=TimeoutError("Request timed out"),
         ):
             with pytest.raises(LLMTimeoutError):
                 await client.get_completion(

@@ -1,8 +1,8 @@
-"""Commands listener module."""
+"""Registers command listeners with the Slack app."""
 
 from slack_bolt import App
 
 
-def register(_app: App) -> None:
+def register(app: App) -> None:
     """Register command listeners."""
-    pass
+    pass  # No commands are currently implemented

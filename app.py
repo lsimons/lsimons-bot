@@ -4,7 +4,7 @@ import os
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
-from listeners import register_listeners
+from lsimons_bot.listeners import register_listeners
 
 logging.basicConfig(level=logging.DEBUG)
 

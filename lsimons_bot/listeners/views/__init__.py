@@ -1,6 +1,8 @@
+"""Registers view listeners with the Slack app."""
+
 from slack_bolt import App
 
 
-def register(_app: App) -> None:
-    """Register all view listeners with the Slack app."""
-    pass
+def register(app: App) -> None:
+    """Register view listeners."""
+    pass  # No views are currently implemented

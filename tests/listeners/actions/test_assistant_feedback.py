@@ -1,18 +1,18 @@
 """Tests for assistant_feedback action handler."""
 
 import logging
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from slack_sdk.errors import SlackApiError
 
-from listeners.actions.assistant_feedback import (
+from lsimons_bot.listeners.actions.assistant_feedback import (
     FeedbackRequest,
     _extract_feedback_data,
     _log_feedback,
     assistant_feedback_handler,
 )
-from lsimons_bot.slack import InvalidRequestError
+from lsimons_bot.slack import InvalidRequestError, SlackAPIError
 
 
 class TestAssistantFeedbackHandler:
@@ -148,7 +148,7 @@ class TestAssistantFeedbackHandler:
 
     @pytest.mark.asyncio
     async def test_handler_unexpected_error(self) -> None:
-        """Test handler with unexpected error."""
+        """Test handler with unexpected error from Slack API."""
         ack = AsyncMock()
         client = MagicMock()
         test_logger = MagicMock(spec=logging.Logger)
@@ -161,7 +161,10 @@ class TestAssistantFeedbackHandler:
             "team": {"id": "T123"},
         }
 
-        client.chat_postEphemeral.side_effect = RuntimeError("Unexpected error")
+        client.chat_postEphemeral.side_effect = SlackApiError(
+            message="api_error",
+            response={"error": "api_error"},
+        )
 
         await assistant_feedback_handler(ack, body, client, test_logger)
 

@@ -10,6 +10,7 @@ from typing import Any
 
 from slack_bolt import Ack
 from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
 
 from lsimons_bot.slack import InvalidRequestError
 
@@ -51,12 +52,6 @@ async def assistant_feedback_handler(
         await _send_acknowledgment(request, client, logger_)
     except InvalidRequestError as e:
         logger_.warning("Invalid feedback request: %s", e)
-    except Exception as e:
-        logger_.error(
-            "Unexpected error in assistant_feedback_handler: %s",
-            str(e),
-            exc_info=True,
-        )
 
 
 def _extract_feedback_data(
@@ -166,5 +161,5 @@ async def _send_acknowledgment(
             thread_ts=request.response_ts,
         )
         logger_.info("Sent feedback acknowledgment to user %s", request.user_id)
-    except Exception as e:
+    except SlackApiError as e:
         logger_.warning("Failed to send feedback acknowledgment: %s", e)

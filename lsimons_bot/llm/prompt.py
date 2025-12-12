@@ -133,10 +133,7 @@ def get_suggested_prompts(channel_topic: str | None = None) -> list[dict[str, st
                     },
                 )
 
-        if any(
-            keyword in topic_lower
-            for keyword in ["design", "ui", "ux", "product", "visual"]
-        ):
+        if any(keyword in topic_lower for keyword in ["design", "ui", "ux", "product", "visual"]):
             if "design_feedback" in SUGGESTED_PROMPTS_TEMPLATES:
                 template = SUGGESTED_PROMPTS_TEMPLATES["design_feedback"]
                 prompts.insert(

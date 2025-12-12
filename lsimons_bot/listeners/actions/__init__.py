@@ -1,15 +1,11 @@
-"""Actions listener module for Slack bot.
-
-This module handles Slack action events (button clicks, select menu interactions, etc).
-"""
+"""Registers action listeners with the Slack app."""
 
 from slack_bolt import App
 
+from .assistant_feedback import assistant_feedback_handler
 
-def register(_app: App) -> None:
-    """Register action listeners with the Slack app.
 
-    Args:
-        _app: The Slack Bolt app instance
-    """
-    pass
+def register(app: App) -> None:
+    """Register action listeners."""
+    app.action("feedback_thumbs_up")(assistant_feedback_handler)
+    app.action("feedback_thumbs_down")(assistant_feedback_handler)

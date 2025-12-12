@@ -57,12 +57,6 @@ async def assistant_thread_started_handler(
         logger_.warning("Invalid request: %s", e)
     except SlackChannelError as e:
         logger_.error("Channel error: %s", e)
-    except Exception as e:
-        logger_.error(
-            "Unexpected error in assistant_thread_started handler: %s",
-            str(e),
-            exc_info=True,
-        )
 
 
 def _extract_thread_data(
@@ -86,9 +80,7 @@ def _extract_thread_data(
     user_id = body.get("user_id", "").strip()
 
     if not thread_id or not channel_id:
-        raise InvalidRequestError(
-            "Missing required fields: assistant_thread_id or channel_id"
-        )
+        raise InvalidRequestError("Missing required fields: assistant_thread_id or channel_id")
 
     logger_.info(
         "Assistant thread started - thread: %s, channel: %s, user: %s",
