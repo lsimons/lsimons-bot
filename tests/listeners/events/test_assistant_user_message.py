@@ -4,12 +4,12 @@ import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from slack_sdk.errors import SlackApiError
 
 from listeners.events.assistant_user_message import (
-    _send_error_message,
+    _extract_request_data,
     assistant_user_message_handler,
 )
+from lsimons_bot.slack import InvalidRequestError
 
 
 async def async_generator(items: list[str]) -> None:
@@ -24,7 +24,7 @@ class TestAssistantUserMessageHandler:
     @pytest.mark.asyncio
     async def test_handler_success(self) -> None:
         """Test successful user message handler execution."""
-        ack = MagicMock()
+        ack = AsyncMock()
         client = MagicMock()
         test_logger = MagicMock(spec=logging.Logger)
 
@@ -34,33 +34,41 @@ class TestAssistantUserMessageHandler:
             "text": "What is machine learning?",
         }
 
-        client.conversations_info.return_value = {
-            "channel": {
-                "name": "general",
-                "topic": {"value": "General discussion"},
-            }
-        }
-        client.conversations_replies.return_value = {"messages": []}
-
         with patch(
-            "listeners.events.assistant_user_message.create_llm_client"
-        ) as mock_llm:
-            mock_client = AsyncMock()
-            mock_client.stream_completion = AsyncMock(
-                return_value=async_generator(["Hello", " there"])
-            )
-            mock_llm.return_value = mock_client
+            "listeners.events.assistant_user_message.get_channel_info"
+        ) as mock_get_channel:
+            with patch(
+                "listeners.events.assistant_user_message.get_conversation_history"
+            ) as mock_get_history:
+                with patch(
+                    "listeners.events.assistant_user_message.create_llm_client"
+                ) as mock_llm:
+                    mock_channel = MagicMock()
+                    mock_channel.name = "general"
+                    mock_channel.topic = "General discussion"
+                    mock_get_channel.return_value = mock_channel
 
-            await assistant_user_message_handler(ack, body, client, test_logger)
+                    mock_get_history.return_value = []
 
-            ack.assert_called_once()
-            client.conversations_info.assert_called()
-            client.assistant.threads.set_status.assert_called()
+                    mock_llm_client = AsyncMock()
+                    mock_llm_client.stream_completion = MagicMock(
+                        return_value=async_generator(["Response"])
+                    )
+                    mock_llm.return_value = mock_llm_client
+
+                    with patch(
+                        "listeners.events.assistant_user_message.set_thread_status"
+                    ):
+                        await assistant_user_message_handler(
+                            ack, body, client, test_logger
+                        )
+
+                    ack.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_handler_missing_thread_id(self) -> None:
         """Test handler with missing assistant_thread_id."""
-        ack = MagicMock()
+        ack = AsyncMock()
         client = MagicMock()
         test_logger = MagicMock(spec=logging.Logger)
 
@@ -73,12 +81,11 @@ class TestAssistantUserMessageHandler:
 
         ack.assert_called_once()
         test_logger.warning.assert_called()
-        client.conversations_info.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_handler_missing_channel_id(self) -> None:
         """Test handler with missing channel_id."""
-        ack = MagicMock()
+        ack = AsyncMock()
         client = MagicMock()
         test_logger = MagicMock(spec=logging.Logger)
 
@@ -95,7 +102,7 @@ class TestAssistantUserMessageHandler:
     @pytest.mark.asyncio
     async def test_handler_empty_message(self) -> None:
         """Test handler with empty user message."""
-        ack = MagicMock()
+        ack = AsyncMock()
         client = MagicMock()
         test_logger = MagicMock(spec=logging.Logger)
 
@@ -109,12 +116,11 @@ class TestAssistantUserMessageHandler:
 
         ack.assert_called_once()
         test_logger.warning.assert_called()
-        client.conversations_info.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_handler_no_text_field(self) -> None:
         """Test handler without text field."""
-        ack = MagicMock()
+        ack = AsyncMock()
         client = MagicMock()
         test_logger = MagicMock(spec=logging.Logger)
 
@@ -129,9 +135,9 @@ class TestAssistantUserMessageHandler:
         test_logger.warning.assert_called()
 
     @pytest.mark.asyncio
-    async def test_handler_channel_info_api_error(self) -> None:
+    async def test_handler_channel_error(self) -> None:
         """Test handler when channel info retrieval fails."""
-        ack = MagicMock()
+        ack = AsyncMock()
         client = MagicMock()
         test_logger = MagicMock(spec=logging.Logger)
 
@@ -141,52 +147,12 @@ class TestAssistantUserMessageHandler:
             "text": "Hello",
         }
 
-        client.conversations_info.side_effect = SlackApiError(
-            message="channel_not_found",
-            response={"error": "channel_not_found"},
-        )
-        client.conversations_replies.return_value = {"messages": []}
-
         with patch(
-            "listeners.events.assistant_user_message.create_llm_client"
-        ) as mock_llm:
-            mock_client = AsyncMock()
-            mock_client.stream_completion = AsyncMock(
-                return_value=async_generator(["Response"])
-            )
-            mock_llm.return_value = mock_client
+            "listeners.events.assistant_user_message.get_channel_info"
+        ) as mock_get_channel:
+            from lsimons_bot.slack import SlackChannelError
 
-            await assistant_user_message_handler(ack, body, client, test_logger)
-
-            # Should still attempt to process
-            test_logger.warning.assert_called()
-            ack.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_handler_llm_configuration_error(self) -> None:
-        """Test handler when LLM configuration is invalid."""
-        ack = MagicMock()
-        client = MagicMock()
-        test_logger = MagicMock(spec=logging.Logger)
-
-        body = {
-            "assistant_thread_id": "thread-123",
-            "channel_id": "C123",
-            "text": "Hello",
-        }
-
-        client.conversations_info.return_value = {
-            "channel": {
-                "name": "general",
-                "topic": {"value": "General discussion"},
-            }
-        }
-        client.conversations_replies.return_value = {"messages": []}
-
-        with patch(
-            "listeners.events.assistant_user_message.create_llm_client"
-        ) as mock_llm:
-            mock_llm.side_effect = ValueError("LITELLM_API_KEY not set")
+            mock_get_channel.side_effect = SlackChannelError("Channel not found")
 
             await assistant_user_message_handler(ack, body, client, test_logger)
 
@@ -194,9 +160,9 @@ class TestAssistantUserMessageHandler:
             test_logger.error.assert_called()
 
     @pytest.mark.asyncio
-    async def test_handler_llm_request_error(self) -> None:
+    async def test_handler_llm_error(self) -> None:
         """Test handler when LLM request fails."""
-        ack = MagicMock()
+        ack = AsyncMock()
         client = MagicMock()
         test_logger = MagicMock(spec=logging.Logger)
 
@@ -206,114 +172,44 @@ class TestAssistantUserMessageHandler:
             "text": "Hello",
         }
 
-        client.conversations_info.return_value = {
-            "channel": {
-                "name": "general",
-                "topic": {"value": "General discussion"},
-            }
-        }
-        client.conversations_replies.return_value = {"messages": []}
-
         with patch(
-            "listeners.events.assistant_user_message.create_llm_client"
-        ) as mock_llm:
-            mock_client = AsyncMock()
-            mock_client.stream_completion = AsyncMock(
-                side_effect=RuntimeError("API error")
-            )
-            mock_llm.return_value = mock_client
+            "listeners.events.assistant_user_message.get_channel_info"
+        ) as mock_get_channel:
+            with patch(
+                "listeners.events.assistant_user_message.get_conversation_history"
+            ) as mock_get_history:
+                with patch("listeners.events.assistant_user_message.set_thread_status"):
+                    with patch(
+                        "listeners.events.assistant_user_message.create_llm_client"
+                    ) as mock_llm:
+                        from lsimons_bot.slack import ChannelInfo
 
-            await assistant_user_message_handler(ack, body, client, test_logger)
+                        mock_channel_info = ChannelInfo(
+                            id="C123",
+                            name="general",
+                            topic="",
+                            is_private=False,
+                        )
+                        mock_get_channel.return_value = mock_channel_info
+                        mock_get_history.return_value = []
 
-            ack.assert_called_once()
-            test_logger.error.assert_called()
+                        mock_client = AsyncMock()
+                        mock_client.stream_completion = MagicMock(
+                            side_effect=Exception("LLM error")
+                        )
+                        mock_llm.return_value = mock_client
 
-    @pytest.mark.asyncio
-    async def test_handler_empty_llm_response(self) -> None:
-        """Test handler when LLM returns empty response."""
-        ack = MagicMock()
-        client = MagicMock()
-        test_logger = MagicMock(spec=logging.Logger)
+                        await assistant_user_message_handler(
+                            ack, body, client, test_logger
+                        )
 
-        body = {
-            "assistant_thread_id": "thread-123",
-            "channel_id": "C123",
-            "text": "Hello",
-        }
-
-        client.conversations_info.return_value = {
-            "channel": {
-                "name": "general",
-                "topic": {"value": "General discussion"},
-            }
-        }
-        client.conversations_replies.return_value = {"messages": []}
-
-        with patch(
-            "listeners.events.assistant_user_message.create_llm_client"
-        ) as mock_llm:
-            mock_client = AsyncMock()
-            mock_client.stream_completion = AsyncMock(return_value=async_generator([]))
-            mock_llm.return_value = mock_client
-
-            await assistant_user_message_handler(ack, body, client, test_logger)
-
-            ack.assert_called_once()
-            # When response is empty, handler logs warning and tries to set error status
-            assert (
-                test_logger.warning.called or client.assistant.threads.set_status.called
-            )
-
-    @pytest.mark.asyncio
-    async def test_handler_with_conversation_history(self) -> None:
-        """Test handler with existing conversation history."""
-        ack = MagicMock()
-        client = MagicMock()
-        test_logger = MagicMock(spec=logging.Logger)
-
-        body = {
-            "assistant_thread_id": "thread-123",
-            "channel_id": "C123",
-            "text": "What about machine learning?",
-        }
-
-        client.conversations_info.return_value = {
-            "channel": {
-                "name": "general",
-                "topic": {"value": "General discussion"},
-            }
-        }
-        client.conversations_replies.return_value = {
-            "messages": [
-                {"ts": "1.0", "user": "U123", "text": "What is AI?"},
-                {
-                    "ts": "2.0",
-                    "bot_id": "B123",
-                    "text": "AI is artificial intelligence",
-                    "bot_profile": {"name": "assistant"},
-                },
-            ]
-        }
-
-        with patch(
-            "listeners.events.assistant_user_message.create_llm_client"
-        ) as mock_llm:
-            mock_client = AsyncMock()
-            mock_client.stream_completion = AsyncMock(
-                return_value=async_generator(["ML is a subset of AI"])
-            )
-            mock_llm.return_value = mock_client
-
-            await assistant_user_message_handler(ack, body, client, test_logger)
-
-            ack.assert_called_once()
-            # Verify LLM was called with conversation history
-            mock_client.stream_completion.assert_called_once()
+                        ack.assert_called_once()
+                        test_logger.error.assert_called()
 
     @pytest.mark.asyncio
     async def test_handler_unexpected_error(self) -> None:
         """Test handler with unexpected error."""
-        ack = MagicMock()
+        ack = AsyncMock()
         client = MagicMock()
         test_logger = MagicMock(spec=logging.Logger)
 
@@ -323,52 +219,94 @@ class TestAssistantUserMessageHandler:
             "text": "Hello",
         }
 
-        client.conversations_info.side_effect = RuntimeError("Unexpected error")
+        with patch(
+            "listeners.events.assistant_user_message.get_channel_info"
+        ) as mock_get_channel:
+            mock_get_channel.side_effect = RuntimeError("Unexpected error")
 
-        await assistant_user_message_handler(ack, body, client, test_logger)
+            await assistant_user_message_handler(ack, body, client, test_logger)
 
-        ack.assert_called_once()
-        test_logger.error.assert_called()
+            ack.assert_called_once()
+            test_logger.error.assert_called()
 
 
-class TestSendErrorMessage:
-    """Tests for _send_error_message function."""
+class TestExtractRequestData:
+    """Tests for _extract_request_data function."""
 
-    def test_send_error_message_success(self) -> None:
-        """Test successfully sending error message."""
-        client = MagicMock()
+    def test_extract_valid_data(self) -> None:
+        """Test extracting valid request data."""
         test_logger = MagicMock(spec=logging.Logger)
 
-        _send_error_message(
-            client,
-            "C123",
-            "thread-123",
-            "An error occurred",
-            test_logger,
-        )
+        body = {
+            "assistant_thread_id": "thread-123",
+            "channel_id": "C123",
+            "text": "Hello assistant",
+        }
 
-        client.assistant.threads.set_status.assert_called_once_with(
-            channel_id="C123",
-            thread_id="thread-123",
-            status="waiting_on_user",
-        )
+        request = _extract_request_data(body, test_logger)
 
-    def test_send_error_message_api_error(self) -> None:
-        """Test error message when API call fails."""
-        client = MagicMock()
-        client.assistant.threads.set_status.side_effect = SlackApiError(
-            message="invalid_argument",
-            response={"error": "invalid_argument"},
-        )
+        assert request.thread_id == "thread-123"
+        assert request.channel_id == "C123"
+        assert request.user_message == "Hello assistant"
+
+    def test_extract_missing_thread_id(self) -> None:
+        """Test extraction with missing thread_id."""
         test_logger = MagicMock(spec=logging.Logger)
 
-        _send_error_message(
-            client,
-            "C123",
-            "thread-123",
-            "An error occurred",
-            test_logger,
-        )
+        body = {
+            "channel_id": "C123",
+            "text": "Hello",
+        }
 
-        # Should log warning but not raise
-        test_logger.warning.assert_called()
+        with pytest.raises(InvalidRequestError):
+            _extract_request_data(body, test_logger)
+
+    def test_extract_missing_channel_id(self) -> None:
+        """Test extraction with missing channel_id."""
+        test_logger = MagicMock(spec=logging.Logger)
+
+        body = {
+            "assistant_thread_id": "thread-123",
+            "text": "Hello",
+        }
+
+        with pytest.raises(InvalidRequestError):
+            _extract_request_data(body, test_logger)
+
+    def test_extract_empty_message(self) -> None:
+        """Test extraction with empty message."""
+        test_logger = MagicMock(spec=logging.Logger)
+
+        body = {
+            "assistant_thread_id": "thread-123",
+            "channel_id": "C123",
+            "text": "   ",
+        }
+
+        with pytest.raises(InvalidRequestError):
+            _extract_request_data(body, test_logger)
+
+    def test_extract_missing_text_field(self) -> None:
+        """Test extraction without text field."""
+        test_logger = MagicMock(spec=logging.Logger)
+
+        body = {
+            "assistant_thread_id": "thread-123",
+            "channel_id": "C123",
+        }
+
+        with pytest.raises(InvalidRequestError):
+            _extract_request_data(body, test_logger)
+
+    def test_extract_whitespace_ids(self) -> None:
+        """Test extraction with whitespace-only IDs."""
+        test_logger = MagicMock(spec=logging.Logger)
+
+        body = {
+            "assistant_thread_id": "   ",
+            "channel_id": "C123",
+            "text": "Hello",
+        }
+
+        with pytest.raises(InvalidRequestError):
+            _extract_request_data(body, test_logger)

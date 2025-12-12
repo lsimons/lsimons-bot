@@ -5,13 +5,31 @@ Sends welcome greeting and suggested prompts to guide user interaction.
 """
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from slack_bolt import Ack
 from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
+
+from lsimons_bot.llm import get_suggested_prompts
+from lsimons_bot.slack import (
+    InvalidRequestError,
+    SlackChannelError,
+    get_channel_info,
+    set_suggested_prompts,
+    set_thread_status,
+)
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ThreadStartedRequest:
+    """Validated thread started request data."""
+
+    thread_id: str
+    channel_id: str
+    user_id: str
 
 
 async def assistant_thread_started_handler(
@@ -22,7 +40,7 @@ async def assistant_thread_started_handler(
 ) -> None:
     """Handle assistant_thread_started event.
 
-    Sends welcome greeting and suggested prompts when user opens an assistant thread.
+    Orchestrates: validation → initialization → context gathering → setup
 
     Args:
         ack: Acknowledge the event to Slack
@@ -30,126 +48,97 @@ async def assistant_thread_started_handler(
         client: Slack WebClient for API calls
         logger_: Logger instance for this handler
     """
-    _ = ack()
+    await ack()
 
     try:
-        # Extract event data
-        assistant_thread_id = body.get("assistant_thread_id")
-        channel_id = body.get("channel_id")
-        user_id = body.get("user_id")
-
-        if not assistant_thread_id or not channel_id:
-            logger_.warning(
-                "Missing required fields in assistant_thread_started event: %s", body
-            )
-            return
-
-        logger_.info(
-            "Assistant thread started - thread: %s, channel: %s, user: %s",
-            assistant_thread_id,
-            channel_id,
-            user_id,
-        )
-
-        # Get channel info for context
-        try:
-            channel_info = client.conversations_info(channel=channel_id)
-            channel_name = channel_info.get("channel", {}).get("name", channel_id)
-            channel_topic = (
-                channel_info.get("channel", {}).get("topic", {}).get("value", "")
-            )
-        except SlackApiError as e:
-            logger_.warning("Failed to get channel info for %s: %s", channel_id, str(e))
-            channel_name = channel_id
-            channel_topic = ""
-
-        # Send welcome message (welcome greeting will be handled by Slack UI)
-        try:
-            _ = client.assistant.threads.set_status(  # pyright: ignore[reportAttributeAccessIssue]
-                channel_id=channel_id,
-                thread_id=assistant_thread_id,
-                status="running",
-            )
-        except SlackApiError as e:
-            logger_.warning("Failed to set thread status: %s", str(e))
-
-        # Generate suggested prompts based on channel
-        suggested_prompts = _generate_suggested_prompts(channel_name, channel_topic)
-
-        # Set suggested prompts for the thread
-        try:
-            _ = client.assistant.threads.set_suggested_prompts(  # pyright: ignore[reportAttributeAccessIssue]
-                channel_id=channel_id,
-                thread_id=assistant_thread_id,
-                prompts=suggested_prompts,
-            )
-            logger_.info(
-                "Set %d suggested prompts for thread %s",
-                len(suggested_prompts),
-                assistant_thread_id,
-            )
-        except SlackApiError as e:
-            logger_.warning("Failed to set suggested prompts: %s", str(e))
-
+        request = _extract_thread_data(body, logger_)
+        await _initialize_thread(request, client, logger_)
+    except InvalidRequestError as e:
+        logger_.warning("Invalid request: %s", e)
+    except SlackChannelError as e:
+        logger_.error("Channel error: %s", e)
     except Exception as e:
         logger_.error(
-            "Error in assistant_thread_started handler: %s", str(e), exc_info=True
+            "Unexpected error in assistant_thread_started handler: %s",
+            str(e),
+            exc_info=True,
         )
 
 
-def _generate_suggested_prompts(
-    channel_name: str, channel_topic: str | None = None
-) -> list[dict[str, str]]:
-    """Generate suggested prompts based on channel context.
-
-    Creates a list of helpful prompt suggestions for users based on the channel
-    they're in and what it's for.
+def _extract_thread_data(
+    body: dict[str, Any],
+    logger_: logging.Logger,
+) -> ThreadStartedRequest:
+    """Extract and validate thread started event data.
 
     Args:
-        channel_name: Name of the channel
-        channel_topic: Optional description of the channel topic
+        body: Event payload
+        logger_: Logger instance
 
     Returns:
-        List of prompt dicts with title and description
+        Validated ThreadStartedRequest
+
+    Raises:
+        InvalidRequestError: If required fields are missing
     """
-    # Default prompts that work for any channel
-    prompts = [
-        {
-            "title": "Summarize",
-            "description": "Summarize the recent discussion in this thread",
-        },
-        {
-            "title": "Explain",
-            "description": "Explain a concept or topic in simple terms",
-        },
-        {
-            "title": "Help",
-            "description": "Help me with a problem or question",
-        },
-    ]
+    thread_id = body.get("assistant_thread_id", "").strip()
+    channel_id = body.get("channel_id", "").strip()
+    user_id = body.get("user_id", "").strip()
 
-    # Add channel-specific prompts if we have topic info
-    if channel_topic:
-        if any(
-            keyword in channel_topic.lower()
-            for keyword in ["engineering", "dev", "code", "tech"]
-        ):
-            prompts.insert(
-                0,
-                {
-                    "title": "Code Review",
-                    "description": "Review this code for issues or improvements",
-                },
-            )
-        elif any(
-            keyword in channel_topic.lower() for keyword in ["design", "ui", "ux"]
-        ):
-            prompts.insert(
-                0,
-                {
-                    "title": "Design Feedback",
-                    "description": "Give me feedback on this design",
-                },
-            )
+    if not thread_id or not channel_id:
+        raise InvalidRequestError(
+            "Missing required fields: assistant_thread_id or channel_id"
+        )
 
-    return prompts
+    logger_.info(
+        "Assistant thread started - thread: %s, channel: %s, user: %s",
+        thread_id,
+        channel_id,
+        user_id,
+    )
+
+    return ThreadStartedRequest(
+        thread_id=thread_id,
+        channel_id=channel_id,
+        user_id=user_id,
+    )
+
+
+async def _initialize_thread(
+    request: ThreadStartedRequest,
+    client: WebClient,
+    logger_: logging.Logger,
+) -> None:
+    """Initialize assistant thread with status and suggested prompts.
+
+    Sets thread to running status and provides channel-specific suggestions.
+
+    Args:
+        request: Validated thread started request
+        client: Slack WebClient
+        logger_: Logger instance
+
+    Raises:
+        SlackChannelError: If Slack operations fail
+    """
+    # Get channel info for context
+    channel_info = get_channel_info(client, request.channel_id)
+
+    # Set thread to running status
+    set_thread_status(client, request.channel_id, request.thread_id, "running")
+
+    # Generate and set suggested prompts based on channel topic
+    suggested_prompts = get_suggested_prompts(channel_info.topic)
+
+    set_suggested_prompts(
+        client,
+        request.channel_id,
+        request.thread_id,
+        suggested_prompts,
+    )
+
+    logger_.info(
+        "Initialized thread %s with %d suggested prompts",
+        request.thread_id,
+        len(suggested_prompts),
+    )
