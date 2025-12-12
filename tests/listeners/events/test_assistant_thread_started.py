@@ -16,7 +16,7 @@ class TestAssistantThreadStartedHandler:
     """Tests for assistant_thread_started_handler function."""
 
     @pytest.mark.asyncio
-    async def test_handler_success(self) -> None:
+    async def test_handler_success(self, fake_slack) -> None:
         """Test successful thread started handler execution."""
         ack = AsyncMock()
         client = MagicMock()
@@ -28,26 +28,27 @@ class TestAssistantThreadStartedHandler:
             "user_id": "U123",
         }
 
-        with patch("lsimons_bot.listeners.events.assistant_thread_started.get_channel_info") as mock_get_channel:
-            with patch("lsimons_bot.listeners.events.assistant_thread_started.set_thread_status") as mock_set_status:
-                with patch(
-                    "lsimons_bot.listeners.events.assistant_thread_started.set_suggested_prompts"
-                ) as mock_set_prompts:
-                    from lsimons_bot.slack import ChannelInfo
+        fake_slack.with_channel(channel_id="C123", name="general", topic="General discussion")
 
-                    mock_channel_info = ChannelInfo(
-                        id="C123",
-                        name="general",
-                        topic="General discussion",
-                        is_private=False,
-                    )
-                    mock_get_channel.return_value = mock_channel_info
+        with (
+            patch(
+                "lsimons_bot.listeners.events.assistant_thread_started.get_channel_info",
+                fake_slack.get_channel_info,
+            ),
+            patch(
+                "lsimons_bot.listeners.events.assistant_thread_started.set_thread_status",
+                fake_slack.set_thread_status,
+            ),
+            patch(
+                "lsimons_bot.listeners.events.assistant_thread_started.set_suggested_prompts",
+                fake_slack.set_suggested_prompts,
+            ),
+        ):
+            await assistant_thread_started_handler(ack, body, client, test_logger)
 
-                    await assistant_thread_started_handler(ack, body, client, test_logger)
-
-                    ack.assert_called_once()
-                    mock_set_status.assert_called_once()
-                    mock_set_prompts.assert_called_once()
+            ack.assert_called_once()
+            fake_slack.set_thread_status.assert_called_once()
+            fake_slack.set_suggested_prompts.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_handler_missing_thread_id(self) -> None:
@@ -84,8 +85,10 @@ class TestAssistantThreadStartedHandler:
         test_logger.warning.assert_called()
 
     @pytest.mark.asyncio
-    async def test_handler_channel_info_error(self) -> None:
+    async def test_handler_channel_info_error(self, fake_slack) -> None:
         """Test handler when channel info retrieval fails."""
+        from lsimons_bot.slack import SlackChannelError
+
         ack = AsyncMock()
         client = MagicMock()
         test_logger = MagicMock(spec=logging.Logger)
@@ -96,11 +99,12 @@ class TestAssistantThreadStartedHandler:
             "user_id": "U123",
         }
 
-        with patch("lsimons_bot.listeners.events.assistant_thread_started.get_channel_info") as mock_get_channel:
-            from lsimons_bot.slack import SlackChannelError
+        fake_slack.get_channel_info.side_effect = SlackChannelError("Channel not found")
 
-            mock_get_channel.side_effect = SlackChannelError("Channel not found")
-
+        with patch(
+            "lsimons_bot.listeners.events.assistant_thread_started.get_channel_info",
+            fake_slack.get_channel_info,
+        ):
             await assistant_thread_started_handler(ack, body, client, test_logger)
 
             ack.assert_called_once()

@@ -12,17 +12,11 @@ from lsimons_bot.listeners.events.assistant_user_message import (
 from lsimons_bot.slack import InvalidRequestError
 
 
-async def async_generator(items: list[str]) -> None:
-    """Helper to create async generator for mocking stream_completion."""
-    for item in items:
-        yield item
-
-
 class TestAssistantUserMessageHandler:
     """Tests for assistant_user_message_handler function."""
 
     @pytest.mark.asyncio
-    async def test_handler_success(self) -> None:
+    async def test_handler_success(self, fake_slack, fake_llm) -> None:
         """Test successful user message handler execution."""
         ack = AsyncMock()
         client = MagicMock()
@@ -34,36 +28,30 @@ class TestAssistantUserMessageHandler:
             "text": "What is machine learning?",
         }
 
-        with patch(
-            "lsimons_bot.listeners.events.assistant_user_message.get_channel_info"
-        ) as mock_get_channel:
-            with patch(
-                "lsimons_bot.listeners.events.assistant_user_message.get_conversation_history"
-            ) as mock_get_history:
-                with patch(
-                    "lsimons_bot.listeners.events.assistant_user_message.create_llm_client"
-                ) as mock_llm:
-                    mock_channel = MagicMock()
-                    mock_channel.name = "general"
-                    mock_channel.topic = "General discussion"
-                    mock_get_channel.return_value = mock_channel
+        fake_slack.with_channel(name="general", topic="General discussion")
+        fake_llm.with_streaming_response(["Response"])
 
-                    mock_get_history.return_value = []
+        with (
+            patch(
+                "lsimons_bot.listeners.events.assistant_user_message.get_channel_info",
+                fake_slack.get_channel_info,
+            ),
+            patch(
+                "lsimons_bot.listeners.events.assistant_user_message.get_conversation_history",
+                fake_slack.get_conversation_history,
+            ),
+            patch(
+                "lsimons_bot.listeners.events.assistant_user_message.create_llm_client",
+                fake_llm.create_llm_client,
+            ),
+            patch(
+                "lsimons_bot.listeners.events.assistant_user_message.set_thread_status",
+                fake_slack.set_thread_status,
+            ),
+        ):
+            await assistant_user_message_handler(ack, body, client, test_logger)
 
-                    mock_llm_client = AsyncMock()
-                    mock_llm_client.stream_completion = MagicMock(
-                        return_value=async_generator(["Response"])
-                    )
-                    mock_llm.return_value = mock_llm_client
-
-                    with patch(
-                        "lsimons_bot.listeners.events.assistant_user_message.set_thread_status"
-                    ):
-                        await assistant_user_message_handler(
-                            ack, body, client, test_logger
-                        )
-
-                    ack.assert_called_once()
+            ack.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_handler_missing_thread_id(self) -> None:
@@ -135,8 +123,10 @@ class TestAssistantUserMessageHandler:
         test_logger.warning.assert_called()
 
     @pytest.mark.asyncio
-    async def test_handler_channel_error(self) -> None:
+    async def test_handler_channel_error(self, fake_slack) -> None:
         """Test handler when channel info retrieval fails."""
+        from lsimons_bot.slack import SlackChannelError
+
         ack = AsyncMock()
         client = MagicMock()
         test_logger = MagicMock(spec=logging.Logger)
@@ -147,21 +137,22 @@ class TestAssistantUserMessageHandler:
             "text": "Hello",
         }
 
+        fake_slack.get_channel_info.side_effect = SlackChannelError("Channel not found")
+
         with patch(
-            "lsimons_bot.listeners.events.assistant_user_message.get_channel_info"
-        ) as mock_get_channel:
-            from lsimons_bot.slack import SlackChannelError
-
-            mock_get_channel.side_effect = SlackChannelError("Channel not found")
-
+            "lsimons_bot.listeners.events.assistant_user_message.get_channel_info",
+            fake_slack.get_channel_info,
+        ):
             await assistant_user_message_handler(ack, body, client, test_logger)
 
             ack.assert_called_once()
             test_logger.error.assert_called()
 
     @pytest.mark.asyncio
-    async def test_handler_llm_error(self) -> None:
+    async def test_handler_llm_error(self, fake_slack, fake_llm) -> None:
         """Test handler when LLM request fails."""
+        from lsimons_bot.llm.exceptions import LLMAPIError
+
         ack = AsyncMock()
         client = MagicMock()
         test_logger = MagicMock(spec=logging.Logger)
@@ -172,71 +163,37 @@ class TestAssistantUserMessageHandler:
             "text": "Hello",
         }
 
-        with patch(
-            "lsimons_bot.listeners.events.assistant_user_message.get_channel_info"
-        ) as mock_get_channel:
-            with patch(
-                "lsimons_bot.listeners.events.assistant_user_message.get_conversation_history"
-            ) as mock_get_history:
-                with patch(
-                    "lsimons_bot.listeners.events.assistant_user_message.set_thread_status"
-                ):
-                    with patch(
-                        "lsimons_bot.listeners.events.assistant_user_message.create_llm_client"
-                    ) as mock_llm:
-                        from lsimons_bot.llm.exceptions import LLMAPIError
-                        from lsimons_bot.slack import ChannelInfo
+        fake_slack.with_channel(channel_id="C123", name="general", topic="")
+        fake_llm.with_error(LLMAPIError("LLM error"))
 
-                        mock_channel_info = ChannelInfo(
-                            id="C123",
-                            name="general",
-                            topic="",
-                            is_private=False,
-                        )
-                        mock_get_channel.return_value = mock_channel_info
-                        mock_get_history.return_value = []
-
-                        mock_client = AsyncMock()
-                        mock_client.stream_completion = MagicMock(
-                            side_effect=LLMAPIError("LLM error")
-                        )
-                        mock_llm.return_value = mock_client
-
-                        await assistant_user_message_handler(
-                            ack, body, client, test_logger
-                        )
-
-                        ack.assert_called_once()
-                        test_logger.error.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_handler_slack_channel_error_in_processing(self) -> None:
-        """Test handler when SlackChannelError occurs during processing."""
-        ack = AsyncMock()
-        client = MagicMock()
-        test_logger = MagicMock(spec=logging.Logger)
-
-        body = {
-            "assistant_thread_id": "thread-123",
-            "channel_id": "C123",
-            "text": "Hello",
-        }
-
-        with patch(
-            "lsimons_bot.listeners.events.assistant_user_message.get_channel_info"
-        ) as mock_get_channel:
-            from lsimons_bot.slack import SlackChannelError
-
-            mock_get_channel.side_effect = SlackChannelError("Channel not found")
-
+        with (
+            patch(
+                "lsimons_bot.listeners.events.assistant_user_message.get_channel_info",
+                fake_slack.get_channel_info,
+            ),
+            patch(
+                "lsimons_bot.listeners.events.assistant_user_message.get_conversation_history",
+                fake_slack.get_conversation_history,
+            ),
+            patch(
+                "lsimons_bot.listeners.events.assistant_user_message.create_llm_client",
+                fake_llm.create_llm_client,
+            ),
+            patch(
+                "lsimons_bot.listeners.events.assistant_user_message.set_thread_status",
+                fake_slack.set_thread_status,
+            ),
+        ):
             await assistant_user_message_handler(ack, body, client, test_logger)
 
             ack.assert_called_once()
             test_logger.error.assert_called()
 
     @pytest.mark.asyncio
-    async def test_handler_slack_thread_error(self) -> None:
-        """Test handler when SlackThreadError occurs during processing."""
+    async def test_handler_slack_channel_error_in_processing(self, fake_slack) -> None:
+        """Test handler when SlackChannelError occurs during processing."""
+        from lsimons_bot.slack import SlackChannelError
+
         ack = AsyncMock()
         client = MagicMock()
         test_logger = MagicMock(spec=logging.Logger)
@@ -247,35 +204,22 @@ class TestAssistantUserMessageHandler:
             "text": "Hello",
         }
 
+        fake_slack.get_channel_info.side_effect = SlackChannelError("Channel not found")
+
         with patch(
-            "lsimons_bot.listeners.events.assistant_user_message.get_channel_info"
-        ) as mock_get_channel:
-            with patch(
-                "lsimons_bot.listeners.events.assistant_user_message.get_conversation_history"
-            ) as mock_get_history:
-                with patch(
-                    "lsimons_bot.listeners.events.assistant_user_message.set_thread_status"
-                ) as mock_set_status:
-                    from lsimons_bot.slack import ChannelInfo, SlackThreadError
+            "lsimons_bot.listeners.events.assistant_user_message.get_channel_info",
+            fake_slack.get_channel_info,
+        ):
+            await assistant_user_message_handler(ack, body, client, test_logger)
 
-                    mock_channel_info = ChannelInfo(
-                        id="C123",
-                        name="general",
-                        topic="",
-                        is_private=False,
-                    )
-                    mock_get_channel.return_value = mock_channel_info
-                    mock_get_history.return_value = []
-                    mock_set_status.side_effect = SlackThreadError("Thread not found")
-
-                    await assistant_user_message_handler(ack, body, client, test_logger)
-
-                    ack.assert_called_once()
-                    test_logger.error.assert_called()
+            ack.assert_called_once()
+            test_logger.error.assert_called()
 
     @pytest.mark.asyncio
-    async def test_handler_llm_configuration_error(self) -> None:
-        """Test handler when LLM configuration error occurs."""
+    async def test_handler_slack_thread_error(self, fake_slack) -> None:
+        """Test handler when SlackThreadError occurs during processing."""
+        from lsimons_bot.slack import SlackThreadError
+
         ack = AsyncMock()
         client = MagicMock()
         test_logger = MagicMock(spec=logging.Logger)
@@ -286,42 +230,68 @@ class TestAssistantUserMessageHandler:
             "text": "Hello",
         }
 
-        with patch(
-            "lsimons_bot.listeners.events.assistant_user_message.get_channel_info"
-        ) as mock_get_channel:
-            with patch(
-                "lsimons_bot.listeners.events.assistant_user_message.get_conversation_history"
-            ) as mock_get_history:
-                with patch(
-                    "lsimons_bot.listeners.events.assistant_user_message.set_thread_status"
-                ):
-                    with patch(
-                        "lsimons_bot.listeners.events.assistant_user_message.create_llm_client"
-                    ) as mock_llm:
-                        from lsimons_bot.llm.exceptions import LLMConfigurationError
-                        from lsimons_bot.slack import ChannelInfo
+        fake_slack.with_channel(channel_id="C123", name="general", topic="")
+        fake_slack.set_thread_status.side_effect = SlackThreadError("Thread not found")
 
-                        mock_channel_info = ChannelInfo(
-                            id="C123",
-                            name="general",
-                            topic="",
-                            is_private=False,
-                        )
-                        mock_get_channel.return_value = mock_channel_info
-                        mock_get_history.return_value = []
+        with (
+            patch(
+                "lsimons_bot.listeners.events.assistant_user_message.get_channel_info",
+                fake_slack.get_channel_info,
+            ),
+            patch(
+                "lsimons_bot.listeners.events.assistant_user_message.get_conversation_history",
+                fake_slack.get_conversation_history,
+            ),
+            patch(
+                "lsimons_bot.listeners.events.assistant_user_message.set_thread_status",
+                fake_slack.set_thread_status,
+            ),
+        ):
+            await assistant_user_message_handler(ack, body, client, test_logger)
 
-                        mock_client = AsyncMock()
-                        mock_client.stream_completion = MagicMock(
-                            side_effect=LLMConfigurationError("Missing API key")
-                        )
-                        mock_llm.return_value = mock_client
+            ack.assert_called_once()
+            test_logger.error.assert_called()
 
-                        await assistant_user_message_handler(
-                            ack, body, client, test_logger
-                        )
+    @pytest.mark.asyncio
+    async def test_handler_llm_configuration_error(self, fake_slack, fake_llm) -> None:
+        """Test handler when LLM configuration error occurs."""
+        from lsimons_bot.llm.exceptions import LLMConfigurationError
 
-                        ack.assert_called_once()
-                        test_logger.error.assert_called()
+        ack = AsyncMock()
+        client = MagicMock()
+        test_logger = MagicMock(spec=logging.Logger)
+
+        body = {
+            "assistant_thread_id": "thread-123",
+            "channel_id": "C123",
+            "text": "Hello",
+        }
+
+        fake_slack.with_channel(channel_id="C123", name="general", topic="")
+        fake_llm.with_error(LLMConfigurationError("Missing API key"))
+
+        with (
+            patch(
+                "lsimons_bot.listeners.events.assistant_user_message.get_channel_info",
+                fake_slack.get_channel_info,
+            ),
+            patch(
+                "lsimons_bot.listeners.events.assistant_user_message.get_conversation_history",
+                fake_slack.get_conversation_history,
+            ),
+            patch(
+                "lsimons_bot.listeners.events.assistant_user_message.create_llm_client",
+                fake_llm.create_llm_client,
+            ),
+            patch(
+                "lsimons_bot.listeners.events.assistant_user_message.set_thread_status",
+                fake_slack.set_thread_status,
+            ),
+        ):
+            await assistant_user_message_handler(ack, body, client, test_logger)
+
+            ack.assert_called_once()
+            test_logger.error.assert_called()
 
 
 class TestExtractRequestData:
@@ -410,7 +380,7 @@ class TestSendErrorToUser:
     """Tests for _send_error_to_user function."""
 
     @pytest.mark.asyncio
-    async def test_send_error_to_user_success(self) -> None:
+    async def test_send_error_to_user_success(self, fake_slack) -> None:
         """Test sending error message to user successfully."""
         from lsimons_bot.listeners.events.assistant_user_message import (
             _send_error_to_user,
@@ -425,11 +395,12 @@ class TestSendErrorToUser:
         }
 
         with patch(
-            "lsimons_bot.listeners.events.assistant_user_message.set_thread_status"
-        ) as mock_set_status:
+            "lsimons_bot.listeners.events.assistant_user_message.set_thread_status",
+            fake_slack.set_thread_status,
+        ):
             await _send_error_to_user(client, body, "Error message", test_logger)
 
-            mock_set_status.assert_called_once_with(
+            fake_slack.set_thread_status.assert_called_once_with(
                 client, "C123", "thread-123", "waiting_on_user"
             )
 
@@ -470,7 +441,7 @@ class TestSendErrorToUser:
         test_logger.warning.assert_called()
 
     @pytest.mark.asyncio
-    async def test_send_error_to_user_slack_error(self) -> None:
+    async def test_send_error_to_user_slack_error(self, fake_slack) -> None:
         """Test sending error when Slack API fails."""
         from lsimons_bot.listeners.events.assistant_user_message import (
             _send_error_to_user,
@@ -485,11 +456,12 @@ class TestSendErrorToUser:
             "channel_id": "C123",
         }
 
-        with patch(
-            "lsimons_bot.listeners.events.assistant_user_message.set_thread_status"
-        ) as mock_set_status:
-            mock_set_status.side_effect = SlackThreadError("Thread not found")
+        fake_slack.set_thread_status.side_effect = SlackThreadError("Thread not found")
 
+        with patch(
+            "lsimons_bot.listeners.events.assistant_user_message.set_thread_status",
+            fake_slack.set_thread_status,
+        ):
             await _send_error_to_user(client, body, "Error message", test_logger)
 
             test_logger.warning.assert_called()
