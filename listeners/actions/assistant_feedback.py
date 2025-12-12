@@ -30,7 +30,7 @@ async def assistant_feedback_handler(
         client: Slack WebClient for API calls
         logger_: Logger instance for this handler
     """
-    ack()
+    _ = ack()
 
     try:
         # Extract action data
@@ -45,7 +45,9 @@ async def assistant_feedback_handler(
             return
 
         # Map action value to feedback type
-        feedback_type = "positive" if action_value == "feedback_thumbs_up" else "negative"
+        feedback_type = (
+            "positive" if action_value == "feedback_thumbs_up" else "negative"
+        )
 
         logger_.info(
             "Received feedback: type=%s, user=%s, channel=%s, response_ts=%s",
@@ -66,10 +68,12 @@ async def assistant_feedback_handler(
         )
 
         # Send acknowledgment to user
-        acknowledgment_text = "Thank you for your feedback! We use this to improve the assistant."
+        acknowledgment_text = (
+            "Thank you for your feedback! We use this to improve the assistant."
+        )
 
         try:
-            client.chat_postEphemeral(
+            _ = client.chat_postEphemeral(
                 channel=channel_id,
                 user=user_id,
                 text=acknowledgment_text,

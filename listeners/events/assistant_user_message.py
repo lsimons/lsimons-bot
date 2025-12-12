@@ -6,8 +6,9 @@ Retrieves conversation history, calls LLM via LiteLLM proxy, and streams respons
 
 import logging
 import os
-from typing import Any
+from typing import Any, cast
 
+from openai.types.chat import ChatCompletionMessageParam
 from slack_bolt import Ack
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
@@ -38,7 +39,7 @@ async def assistant_user_message_handler(
         client: Slack WebClient for API calls
         logger_: Logger instance for this handler
     """
-    ack()
+    _ = ack()
 
     try:
         # Extract event data
@@ -47,7 +48,9 @@ async def assistant_user_message_handler(
         user_message = body.get("text", "").strip()
 
         if not assistant_thread_id or not channel_id:
-            logger_.warning("Missing required fields in assistant_user_message event: %s", body)
+            logger_.warning(
+                "Missing required fields in assistant_user_message event: %s", body
+            )
             return
 
         if not user_message:
@@ -62,7 +65,7 @@ async def assistant_user_message_handler(
 
         # Set thread status to indicate processing
         try:
-            client.assistant.threads.set_status(
+            _ = client.assistant.threads.set_status(  # pyright: ignore[reportAttributeAccessIssue]
                 channel_id=channel_id,
                 thread_id=assistant_thread_id,
                 status="running",
@@ -76,26 +79,36 @@ async def assistant_user_message_handler(
         try:
             channel_info = client.conversations_info(channel=channel_id)
             channel_name = channel_info.get("channel", {}).get("name", channel_id)
-            channel_topic = channel_info.get("channel", {}).get("topic", {}).get("value", "")
+            channel_topic = (
+                channel_info.get("channel", {}).get("topic", {}).get("value", "")
+            )
         except SlackApiError as e:
             logger_.warning("Failed to get channel info for %s: %s", channel_id, str(e))
 
         # Get conversation history from thread
         try:
-            conversation_history = get_conversation_history(client, channel_id, assistant_thread_id)
+            conversation_history = get_conversation_history(
+                client, channel_id, assistant_thread_id
+            )
         except SlackApiError as e:
             logger_.error("Failed to get conversation history: %s", str(e))
             conversation_history = []
 
         # Build messages for LLM
-        messages = conversation_history.copy()
-        messages.append({"role": "user", "content": user_message})
+        messages: list[ChatCompletionMessageParam] = cast(
+            list[ChatCompletionMessageParam], conversation_history.copy()
+        )
+        messages.append(  # type: ignore[arg-type]
+            {"role": "user", "content": user_message}
+        )
 
         # Get system prompt and model from environment
         system_prompt = (
             os.getenv("ASSISTANT_SYSTEM_PROMPT", "You are a helpful assistant.")
             + "\n\n"
-            + format_thread_context(channel_name, channel_topic if channel_topic else None)
+            + format_thread_context(
+                channel_name, channel_topic if channel_topic else None
+            )
         )
 
         model = os.getenv("ASSISTANT_MODEL", "azure/gpt-5-mini")
@@ -154,7 +167,7 @@ async def assistant_user_message_handler(
 
         # Post the response to the thread
         try:
-            client.assistant.threads.set_status(
+            _ = client.assistant.threads.set_status(  # pyright: ignore[reportAttributeAccessIssue]
                 channel_id=channel_id,
                 thread_id=assistant_thread_id,
                 status="waiting_on_user",
@@ -163,7 +176,9 @@ async def assistant_user_message_handler(
             logger_.warning("Failed to set final thread status: %s", str(e))
 
     except Exception as e:
-        logger_.error("Error in assistant_user_message handler: %s", str(e), exc_info=True)
+        logger_.error(
+            "Error in assistant_user_message handler: %s", str(e), exc_info=True
+        )
 
 
 def _send_error_message(
@@ -183,7 +198,7 @@ def _send_error_message(
         logger_: Logger instance
     """
     try:
-        client.assistant.threads.set_status(
+        _ = client.assistant.threads.set_status(  # pyright: ignore[reportAttributeAccessIssue]
             channel_id=channel_id,
             thread_id=thread_id,
             status="waiting_on_user",

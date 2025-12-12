@@ -30,7 +30,7 @@ async def assistant_thread_started_handler(
         client: Slack WebClient for API calls
         logger_: Logger instance for this handler
     """
-    ack()
+    _ = ack()
 
     try:
         # Extract event data
@@ -39,7 +39,9 @@ async def assistant_thread_started_handler(
         user_id = body.get("user_id")
 
         if not assistant_thread_id or not channel_id:
-            logger_.warning("Missing required fields in assistant_thread_started event: %s", body)
+            logger_.warning(
+                "Missing required fields in assistant_thread_started event: %s", body
+            )
             return
 
         logger_.info(
@@ -53,7 +55,9 @@ async def assistant_thread_started_handler(
         try:
             channel_info = client.conversations_info(channel=channel_id)
             channel_name = channel_info.get("channel", {}).get("name", channel_id)
-            channel_topic = channel_info.get("channel", {}).get("topic", {}).get("value", "")
+            channel_topic = (
+                channel_info.get("channel", {}).get("topic", {}).get("value", "")
+            )
         except SlackApiError as e:
             logger_.warning("Failed to get channel info for %s: %s", channel_id, str(e))
             channel_name = channel_id
@@ -61,7 +65,7 @@ async def assistant_thread_started_handler(
 
         # Send welcome message (welcome greeting will be handled by Slack UI)
         try:
-            client.assistant.threads.set_status(
+            _ = client.assistant.threads.set_status(  # pyright: ignore[reportAttributeAccessIssue]
                 channel_id=channel_id,
                 thread_id=assistant_thread_id,
                 status="running",
@@ -74,7 +78,7 @@ async def assistant_thread_started_handler(
 
         # Set suggested prompts for the thread
         try:
-            client.assistant.threads.set_suggested_prompts(
+            _ = client.assistant.threads.set_suggested_prompts(  # pyright: ignore[reportAttributeAccessIssue]
                 channel_id=channel_id,
                 thread_id=assistant_thread_id,
                 prompts=suggested_prompts,
@@ -88,10 +92,14 @@ async def assistant_thread_started_handler(
             logger_.warning("Failed to set suggested prompts: %s", str(e))
 
     except Exception as e:
-        logger_.error("Error in assistant_thread_started handler: %s", str(e), exc_info=True)
+        logger_.error(
+            "Error in assistant_thread_started handler: %s", str(e), exc_info=True
+        )
 
 
-def _generate_suggested_prompts(channel_name: str, channel_topic: str | None = None) -> list[dict[str, str]]:
+def _generate_suggested_prompts(
+    channel_name: str, channel_topic: str | None = None
+) -> list[dict[str, str]]:
     """Generate suggested prompts based on channel context.
 
     Creates a list of helpful prompt suggestions for users based on the channel
@@ -122,7 +130,10 @@ def _generate_suggested_prompts(channel_name: str, channel_topic: str | None = N
 
     # Add channel-specific prompts if we have topic info
     if channel_topic:
-        if any(keyword in channel_topic.lower() for keyword in ["engineering", "dev", "code", "tech"]):
+        if any(
+            keyword in channel_topic.lower()
+            for keyword in ["engineering", "dev", "code", "tech"]
+        ):
             prompts.insert(
                 0,
                 {
@@ -130,7 +141,9 @@ def _generate_suggested_prompts(channel_name: str, channel_topic: str | None = N
                     "description": "Review this code for issues or improvements",
                 },
             )
-        elif any(keyword in channel_topic.lower() for keyword in ["design", "ui", "ux"]):
+        elif any(
+            keyword in channel_topic.lower() for keyword in ["design", "ui", "ux"]
+        ):
             prompts.insert(
                 0,
                 {

@@ -6,5 +6,5 @@ from .assistant_user_message import assistant_user_message_handler
 
 def register(app: App) -> None:
     """Register event listeners with the Slack app."""
-    app.event("assistant_thread_started")(assistant_thread_started_handler)
-    app.event("assistant_user_message")(assistant_user_message_handler)
+    _ = app.event("assistant_thread_started")(assistant_thread_started_handler)
+    _ = app.event("assistant_user_message")(assistant_user_message_handler)
