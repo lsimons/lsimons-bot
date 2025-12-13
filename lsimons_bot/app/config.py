@@ -1,6 +1,12 @@
 import os
 
-REQUIRED_VARS = ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"]
+REQUIRED_VARS = [
+    "SLACK_BOT_TOKEN",
+    "SLACK_APP_TOKEN",
+    "OPENAI_BASE_URL",
+    "OPENAI_API_KEY",
+    "OPENAI_MODEL",
+]
 
 
 def validate_env_vars(required_vars: list[str]) -> dict[str, str]:

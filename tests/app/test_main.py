@@ -11,10 +11,14 @@ class TestMain:
         mock_env_vars = {
             "SLACK_BOT_TOKEN": "xoxb-test-token",
             "SLACK_APP_TOKEN": "xapp-test-token",
+            "OPENAI_BASE_URL": "http://localhost:8000",
+            "OPENAI_API_KEY": "test-key",
+            "OPENAI_MODEL": "gpt-4",
         }
 
         with (
             patch("lsimons_bot.app.main.get_env_vars", return_value=mock_env_vars),
+            patch("lsimons_bot.app.main.LLMClient"),
             patch("lsimons_bot.app.main.AsyncApp"),
             patch("lsimons_bot.app.main.assistant.register"),
             patch("lsimons_bot.app.main.messages.register"),

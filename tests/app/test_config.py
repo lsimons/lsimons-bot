@@ -22,13 +22,22 @@ class TestGetEnvVars:
     def test_all_env_vars_present(self) -> None:
         with patch.dict(
             os.environ,
-            {"SLACK_BOT_TOKEN": "xoxb-test", "SLACK_APP_TOKEN": "xapp-test"},
+            {
+                "SLACK_BOT_TOKEN": "xoxb-test",
+                "SLACK_APP_TOKEN": "xapp-test",
+                "OPENAI_BASE_URL": "http://localhost:8000",
+                "OPENAI_API_KEY": "test-key",
+                "OPENAI_MODEL": "gpt-4",
+            },
             clear=True,
         ):
             result = get_env_vars()
             assert result == {
                 "SLACK_BOT_TOKEN": "xoxb-test",
                 "SLACK_APP_TOKEN": "xapp-test",
+                "OPENAI_BASE_URL": "http://localhost:8000",
+                "OPENAI_API_KEY": "test-key",
+                "OPENAI_MODEL": "gpt-4",
             }
 
     def test_missing_env_vars(self) -> None:
