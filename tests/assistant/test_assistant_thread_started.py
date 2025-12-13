@@ -8,5 +8,4 @@ from lsimons_bot.assistant.assistant_thread_started import assistant_thread_star
 class TestAssistantThreadStarted:
     @pytest.mark.asyncio
     async def test_assistant_thread_started_happy_path(self) -> None:
-        """Test that assistant_thread_started runs without error."""
         await assistant_thread_started(AsyncMock(), AsyncMock())

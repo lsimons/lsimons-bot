@@ -8,7 +8,6 @@ from lsimons_bot.home.app_home_opened import app_home_opened
 
 class TestRegister:
     def test_register_happy_path(self) -> None:
-        """Test that register adds app_home_opened event handler."""
         mock_app = MagicMock()
         mock_event = MagicMock()
         mock_app.event.return_value = mock_event
@@ -21,5 +20,4 @@ class TestRegister:
 class TestAppHomeOpened:
     @pytest.mark.asyncio
     async def test_app_home_opened_runs_without_error(self) -> None:
-        """Test that app_home_opened can be called without raising exceptions."""
         await app_home_opened()

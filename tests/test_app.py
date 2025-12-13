@@ -8,7 +8,6 @@ from lsimons_bot.app import main
 class TestMain:
     @pytest.mark.asyncio
     async def test_main_happy_path(self) -> None:
-        """Test that main initializes and starts the Slack app successfully."""
         mock_env_vars = {
             "SLACK_BOT_TOKEN": "xoxb-test-token",
             "SLACK_APP_TOKEN": "xapp-test-token",

@@ -5,5 +5,4 @@ from lsimons_bot.messages import register
 
 class TestRegister:
     def test_register_happy_path(self) -> None:
-        """Test that register runs without error."""
         register(MagicMock())
