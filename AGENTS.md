@@ -15,20 +15,38 @@ This document provides instructions for AI code-generation agents.
 
 ```
 lsimons-bot/
-├── listeners/             # Slack Bolt listener categories
-│   ├── actions/
-│   ├── commands/
-│   ├── events/
-│   ├── messages/
-│   ├── shortcuts/
-│   └── views/
-├── tests/                 # Unit tests organized by feature/category
+├── lsimons_bot/           # Main application source code
+│   ├── assistant/         # AI assistant handlers
+│   │   ├── __init__.py    # register(app) function
+│   │   ├── assistant_message.py
+│   │   └── assistant_thread_started.py
+│   ├── home/              # Home tab handlers
+│   │   ├── __init__.py
+│   │   └── app_home_opened.py
+│   ├── messages/          # Message event handlers
+│   │   ├── __init__.py
+│   │   ├── app_mention.py
+│   │   └── message.py
+│   ├── app.py             # Main application entry point
+│   └── config.py          # Environment configuration
+├── tests/                 # Unit tests mirroring source structure
+│   ├── assistant/         # Tests for assistant module
+│   ├── home/              # Tests for home module
+│   ├── messages/          # Tests for messages module
+│   ├── test_app.py        # Tests for app.py
+│   └── test_config.py     # Tests for config.py
 ├── docs/
 │   └── spec/              # Persistent specs (000, 001, 002...)
-├── history/               # AI-generated planning/ephemeral docs
-├── .beads/                # bd (beads) issue tracking files
-└── [config files]         # Root-level configuration
+├── app.py                 # Entry point script (imports from lsimons_bot)
+├── manifest.json          # Slack app manifest
+├── requirements.txt       # Python dependencies
+└── pyrightconfig.json     # Type checker configuration
 ```
+
+**Key patterns:**
+- Each module has `__init__.py` with a `register(app)` function
+- Each handler is in its own file (one handler per file)
+- Tests mirror source structure exactly (module → test submodule, file → test file)
 
 ## Issue Tracking with bd (beads)
 
