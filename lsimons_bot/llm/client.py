@@ -59,14 +59,10 @@ class LiteLLMClient:
         """
         resolved_api_key = api_key or os.getenv("LITELLM_API_KEY")
         if not resolved_api_key:
-            raise LLMConfigurationError(
-                "LITELLM_API_KEY must be provided or set as environment variable"
-            )
+            raise LLMConfigurationError("LITELLM_API_KEY must be provided or set as environment variable")
         self.api_key = resolved_api_key
 
-        self.base_url = base_url or os.getenv(
-            "LITELLM_API_BASE", "https://litellm.sbp.ai/"
-        )
+        self.base_url = base_url or os.getenv("LITELLM_API_BASE", "https://litellm.sbp.ai/")
         self.timeout = timeout
 
         self._client = AsyncOpenAI(
@@ -129,9 +125,7 @@ class LiteLLMClient:
             raise LLMTimeoutError(f"Request timeout for model {model}") from e
         except RateLimitError as e:
             logger.error(f"LiteLLM quota/rate limit for model {model}: {str(e)}")
-            raise LLMQuotaExceededError(
-                f"Quota or rate limit exceeded for model {model}"
-            ) from e
+            raise LLMQuotaExceededError(f"Quota or rate limit exceeded for model {model}") from e
         except APIConnectionError as e:
             logger.error(f"LiteLLM connection error for model {model}: {str(e)}")
             raise LLMAPIError(f"Connection error for model {model}") from e

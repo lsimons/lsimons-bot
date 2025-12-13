@@ -300,9 +300,7 @@ class TestStreamCompletion:
         client = LiteLLMClient(api_key="test-key")
 
         async def raise_auth_error(*args, **kwargs):
-            raise AuthenticationError(
-                "Invalid API key", response=MagicMock(), body=None
-            )
+            raise AuthenticationError("Invalid API key", response=MagicMock(), body=None)
 
         with patch.object(
             client._client.chat.completions,
