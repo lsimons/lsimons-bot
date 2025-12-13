@@ -1,12 +1,12 @@
 import logging
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
 
 async def message(body: dict[str, Any]) -> None:
-    event = body.get("event", {})
-    text = event.get("text", "")
+    event = cast(dict[str, Any], body.get("event", {}))
+    text = cast(str, event.get("text", ""))
     logger.debug(">> message('%s',...)", text)
 
     # type = body.get("type", "")
@@ -14,7 +14,7 @@ async def message(body: dict[str, Any]) -> None:
     #     logger.debug("ignoring %s message", type)
     #     return
 
-    bot_id = event.get("bot_id", {})
+    bot_id = event.get("bot_id")
     if bot_id:
         logger.debug("ignoring bot message")
         return

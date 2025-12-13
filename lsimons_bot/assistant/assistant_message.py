@@ -1,7 +1,7 @@
 import logging
 import random
 from asyncio import sleep
-from typing import Any, Dict, List
+from typing import Any, cast
 
 from slack_bolt.async_app import (
     AsyncBoltContext,
@@ -38,20 +38,20 @@ def pick_response_message() -> str:
 
 async def assistant_message(
     context: AsyncBoltContext,
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     say: AsyncSay,
     set_status: AsyncSetStatus,
     set_title: AsyncSetTitle,
     client: AsyncWebClient,
 ) -> None:
-    user_message = payload.get("text", "")
+    user_message = cast(str, payload.get("text", ""))
     logger.debug(">> assistant_message('%s',...)", user_message)
     channel_id = context.channel_id
     thread_ts = context.thread_ts
-    messages: List[Dict[str, str]] = []
+    messages: list[dict[str, str]] = []
 
-    await set_title(user_message)
-    await set_status(status="thinking...", loading_messages=loading_messages)
+    _ = await set_title(user_message)
+    _ = await set_status(status="thinking...", loading_messages=loading_messages)
     await sleep(0.05)
 
     if channel_id is not None and thread_ts is not None:
@@ -59,7 +59,7 @@ async def assistant_message(
             messages = await read_thread(client, channel_id, thread_ts)
         except Exception as e:
             logger.error("Error reading the message thread: %s", e)
-            await say(f"Error reading the message thread: {e}")
+            _ = await say(f"Error reading the message thread: {e}")
             return
     else:
         messages = [{"role": "user", "content": user_message}]
@@ -67,20 +67,21 @@ async def assistant_message(
 
     await sleep(0.05)
     response = pick_response_message()
-    await say(response)
+    _ = await say(response)
     logger.debug("<< assistant_message()")
 
 
-async def read_thread(client: AsyncWebClient, channel_id: str, thread_ts: str) -> List[Dict[str, str]]:
-    messages: List[Dict[str, str]] = []
+async def read_thread(client: AsyncWebClient, channel_id: str, thread_ts: str) -> list[dict[str, str]]:
+    messages: list[dict[str, str]] = []
     replies: AsyncSlackResponse = await client.conversations_replies(
         channel=channel_id,
         ts=thread_ts,
         oldest=thread_ts,
         limit=100,
     )
-    for message in replies.get("messages", []):
-        message_text = message.get("text", "")
+    raw_messages = cast(list[dict[str, Any]], replies.get("messages", []))
+    for message in raw_messages:
+        message_text = cast(str, message.get("text", ""))
         if message_text.strip() == "":
             continue
         bot_id = message.get("bot_id")

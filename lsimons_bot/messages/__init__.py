@@ -5,5 +5,5 @@ from .message import message
 
 
 def register(app: AsyncApp) -> None:
-    app.event("message")(message)
-    app.event("app_mention")(app_mention)
+    _ = app.event("message")(message)
+    _ = app.event("app_mention")(app_mention)
