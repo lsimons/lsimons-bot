@@ -23,6 +23,27 @@ from lsimons_bot.llm.exceptions import (
 )
 
 
+@pytest.fixture(autouse=True)
+def mock_async_openai():
+    """Mock AsyncOpenAI initialization to speed up tests.
+
+    This fixture automatically patches AsyncOpenAI.__init__ to avoid the
+    overhead of creating real client instances. Tests can still access
+    and mock the _client attribute as needed.
+    """
+    with patch("lsimons_bot.llm.client.AsyncOpenAI") as mock_class:
+        # Create a mock instance that will be returned
+        mock_instance = MagicMock()
+        mock_instance.chat = MagicMock()
+        mock_instance.chat.completions = MagicMock()
+        mock_instance.close = AsyncMock()
+
+        # Make the AsyncOpenAI constructor return our mock instance
+        mock_class.return_value = mock_instance
+
+        yield mock_class
+
+
 class TestLiteLLMClientInit:
     """Tests for LiteLLMClient initialization."""
 
