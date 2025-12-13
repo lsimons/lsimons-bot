@@ -156,6 +156,46 @@ All code must meet these quality standards:
 4. **Type Safety**: Full and strict Python typing
 5. **Code Coverage**: Minimum 80% test coverage (branches, functions, lines, statements)
 
+### Coding Style and Patterns
+
+This codebase values **compact, pragmatic code**. Follow these patterns:
+
+#### Code Organization
+
+- **Small files**: Keep files under 300 lines (most are under 25 lines)
+- **Module structure**: Feature areas have submodules with:
+  - `__init__.py` with a `register(app)` function
+  - Handler files with specific event handlers (one per file)
+  - Clean separation of concerns
+- **No over-engineering**: Write simple, direct code for current requirements
+- **Type hints**: Use full type annotations everywhere
+
+#### Test Organization
+
+- **Mirror source structure**:
+  - Simple modules → single test file (e.g., `test_app.py`)
+  - Multi-file modules → test submodule (e.g., `tests/assistant/`)
+- **Pragmatic testing**:
+  - Aim for 100% coverage with minimal tests
+  - Focus on happy path + key error cases
+  - No redundant edge case tests
+  - No docstrings on test methods (names are self-documenting)
+- **Minimal mocking**:
+  - Only mock external dependencies
+  - Don't assert on mock call details unless testing specific behavior
+  - Use helper methods to reduce duplication
+  - Tests verify "does it work" not "how does it work"
+
+#### What to Avoid
+
+- ❌ Long files (>300 lines)
+- ❌ Docstrings on test methods
+- ❌ Redundant test cases for every edge case
+- ❌ Over-mocking or asserting on mock internals
+- ❌ Premature abstractions or helper functions for one-time use
+- ❌ Feature flags, backwards-compatibility hacks, or hypothetical requirements
+- ❌ Verbose test names with full sentences (keep them concise)
+
 ### Commit Message Convention
 
 Follow [Conventional Commits](https://conventionalcommits.org/) with these types:
