@@ -16,14 +16,15 @@ class TestRegister:
                 mock_handler = MagicMock()
                 mock_factory.return_value = mock_handler
 
-                register(mock_app, mock_bot)
+                with patch("lsimons_bot.slack.assistant.assistant_thread_started") as mock_thread_started:
+                    register(mock_app, mock_bot)
 
-                # Verify the factory was called with the bot instance
-                mock_factory.assert_called_once_with(mock_bot)
+                    # Verify the factory was called with the bot instance
+                    mock_factory.assert_called_once_with(mock_bot)
 
-                # Verify assistant methods were called properly
-                mock_assistant.thread_started.assert_called_once()
-                mock_assistant.user_message.assert_called_once_with(mock_handler)
+                    # Verify assistant methods were called properly
+                    mock_assistant.thread_started.assert_called_once_with(mock_thread_started)
+                    mock_assistant.user_message.assert_called_once_with(mock_handler)
 
-                # Verify the assistant was registered with the app
-                mock_app.use.assert_called_once_with(mock_assistant)
+                    # Verify the assistant was registered with the app
+                    mock_app.use.assert_called_once_with(mock_assistant)
