@@ -44,7 +44,6 @@ See [AGENTS.md] for development guidelines, including:
 - Project structure and organization
 - Testing and code quality standards
 - Git workflow and commit conventions
-- Issue tracking with `bd` (beads)
 
 ## Running the bot
 
