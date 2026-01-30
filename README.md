@@ -40,7 +40,7 @@ slack app settings
 
 # Development
 
-See [AGENTS.md] for development guidelines, including:
+See [AGENTS.md](./AGENTS.md) for development guidelines, including:
 - Project structure and organization
 - Testing and code quality standards
 - Git workflow and commit conventions
@@ -70,10 +70,10 @@ uv run pytest . --cov=lsimons_bot
 
 ## Documentation
 
-See [docs] for additional documentation:
-- [docs/spec/000-shared-patterns.md] - Common code patterns
-- [docs/spec/001-spec-based-development.md] - How to write and implement specs
-- [docs/spec/002-slack-client.md] - Slack integration architecture
+See [docs](./docs) for additional documentation:
+- [docs/spec/000-shared-patterns.md](./docs/spec/000-shared-patterns.md) - Common code patterns
+- [docs/spec/001-spec-based-development.md](./docs/spec/001-spec-based-development.md) - How to write and implement specs
+- [docs/spec/002-slack-client.md](./docs/spec/002-slack-client.md) - Slack integration architecture
 
 Reference docs for slack api:
 - [async app docs](https://docs.slack.dev/tools/bolt-python/reference/async_app.html)
@@ -82,4 +82,4 @@ Reference docs for slack api:
 
 ## License
 
-See [LICENSE.md] for license information. The original Slack template is MIT licensed, while new code is private.
+MIT. See [LICENSE.md](./LICENSE.md).
