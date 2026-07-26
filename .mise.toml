@@ -25,8 +25,8 @@ description = "ruff format + ruff check --fix"
 run = ["uv run ruff format .", "uv run ruff check --fix ."]
 
 [tasks.typecheck]
-description = "basedpyright lsimons_bot"
-run = "uv run basedpyright lsimons_bot"
+description = "basedpyright"
+run = "uv run basedpyright"
 
 [tasks.test]
 description = "pytest"
@@ -48,7 +48,9 @@ depends = ["lint", "typecheck", "test"]
 description = "Watch GitHub Actions CI for the current branch; exits non-zero on failure"
 run = """
 sleep 5
-run_id=$(gh run list --branch "$(git branch --show-current)" --limit 1 --json databaseId --jq '.[0].databaseId')
-if [ -z "$run_id" ]; then echo "No run found for current branch" >&2; exit 1; fi
-gh run watch --exit-status "$run_id"
+remote_url=$(git remote get-url upstream 2>/dev/null || git remote get-url origin)
+repo=$(echo "$remote_url" | sed -E 's|^.*github\\.com[:/]||; s|\\.git$||')
+run_id=$(gh run list --repo "$repo" --branch "$(git branch --show-current)" --limit 1 --json databaseId --jq '.[0].databaseId')
+if [ -z "$run_id" ]; then echo "No run found for current branch on $repo" >&2; exit 1; fi
+gh run watch --repo "$repo" --exit-status "$run_id"
 """

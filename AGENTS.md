@@ -12,7 +12,7 @@ Python AI bot for Schuberg Philis Slack.
 - **Blog publisher**: `mise run blog` (wraps `python -m lsimons_bot.blog` in `fnox exec`)
 - **Format**: `mise run format` (or `uv run ruff format .`)
 - **Lint**: `mise run lint` (ruff check + format --check)
-- **Typecheck**: `mise run typecheck` (basedpyright lsimons_bot)
+- **Typecheck**: `mise run typecheck` (basedpyright)
 - **Test**: `mise run test` (or `uv run pytest`)
 - **Full CI gate**: `mise run ci`
 
